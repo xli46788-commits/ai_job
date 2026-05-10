@@ -1,0 +1,120 @@
+/**
+ * uni-app 内置样式变量 (保留原生，防插件报错)
+ */
+$uni-color-primary: #007aff;
+$uni-color-success: #4cd964;
+$uni-color-warning: #f0ad4e;
+$uni-color-error: #dd524d;
+$uni-text-color:#333;
+$uni-text-color-inverse:#fff;
+$uni-text-color-grey:#999;
+$uni-text-color-placeholder: #808080;
+$uni-text-color-disable:#c0c0c0;
+$uni-bg-color:#ffffff;
+$uni-bg-color-grey:#f8f8f8;
+$uni-bg-color-hover:#f1f1f1;
+$uni-bg-color-mask:rgba(0, 0, 0, 0.4);
+$uni-border-color:#c8c7cc;
+$uni-font-size-sm:12px;
+$uni-font-size-base:14px;
+$uni-font-size-lg:16px;
+$uni-img-size-sm:20px;
+$uni-img-size-base:26px;
+$uni-img-size-lg:40px;
+$uni-border-radius-sm: 2px;
+$uni-border-radius-base: 3px;
+$uni-border-radius-lg: 6px;
+$uni-border-radius-circle: 50%;
+$uni-spacing-row-sm: 5px;
+$uni-spacing-row-base: 10px;
+$uni-spacing-row-lg: 15px;
+$uni-spacing-col-sm: 4px;
+$uni-spacing-col-base: 8px;
+$uni-spacing-col-lg: 12px;
+$uni-opacity-disabled: 0.3;
+$uni-color-title: #2C405A;
+$uni-font-size-title:20px;
+$uni-color-subtitle: #555555;
+$uni-font-size-subtitle:26px;
+$uni-color-paragraph: #3F536E;
+$uni-font-size-paragraph:15px;
+
+/* =============== 【AI 职引未来：宇宙色彩变量】 =============== */
+$primary: #3b82f6;   // 科技蓝 (主色)
+$secondary: #8b5cf6; // 神经紫 (辅色)
+$accent: #06b6d4;    // 数据青 (点缀)
+$success: #10b981;   // 成功状态
+$warning: #f59e0b;   // 警告状态
+$danger: #ef4444;    // 危险状态
+
+/* =============== 【AI 职引未来：全局进场动画】 =============== */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 40rpx, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.both { animation-fill-mode: both; }
+
+/* =============== 【PC 端专属适配层】 =============== */
+// 1. 禁用 uni-app 的 H5 缩放机制
+.uni-page, .page, .view, .uni-content, #app {
+  transform: none !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+// 2. 全局根容器：适配桌面
+html, body {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: #020205; // 【已修改】对齐极夜黑主背景
+  font-size: 14px;
+  color: #ffffff; // 默认全局白字
+}
+
+// 3. 主内容区：居中 + 最大宽度（推荐 1000px，兼顾 1080p/2K 屏）
+.page-container, .uni-page-body, .content-wrapper, .login-page, .student-home {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+// 4. 修复常见窄屏问题
+.uni-page { display: block; }
+
+// 5. 针对你的页面结构优化
+.identity-section {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 40px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.login-card, .recommend-card {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+// 6. 提升 PC 端可读性
+h1, h2, h3, .title { font-weight: 600; }
+.text-lg { font-size: $uni-font-size-lg; }
+.uni-data-checkbox, .uni-data-select { font-size: 16px; }

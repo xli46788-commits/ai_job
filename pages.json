@@ -1,0 +1,122 @@
+{
+  "pages": [
+    {
+      "path": "pages/auth/login",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    // ==================== C端 (学生端) 页面 ====================
+    {
+      "path": "pages/student/home",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/upload-resume",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/match-result",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/ai-polish",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/profile",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/points-recharge",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/community",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/student/mock-interview",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+	// ==================== O端 (管理员端) 页面 ====================
+	    {
+	      "path": "pages/admin/home",
+	      "style": {
+	        "navigationBarTitleText": "系统监控舱",
+	        "navigationStyle": "custom"
+	      }
+	    },
+	    {
+	      "path": "pages/admin/audit",
+	      "style": {
+	        "navigationBarTitleText": "内容审核台",
+	        "navigationStyle": "custom"
+	      }
+	    },
+	    {
+	      "path": "pages/admin/users",
+	      "style": {
+	        "navigationBarTitleText": "用户治理网",
+	        "navigationStyle": "custom"
+	      }
+	    },
+    // ==================== B端 (企业端) 页面 ====================
+    {
+      "path": "pages/company/home",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/company/post-job",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/company/resume-list",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/company/job-list",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/company/analytics",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "AI职引未来",
+    "navigationBarBackgroundColor": "#030308",
+    "backgroundColor": "#030308",
+    "navigationBarShadow": "none",
+    "backgroundTextStyle": "dark",
+    "enablePullDownRefresh": false
+  },
+  "uniIdRouter": {}
+}

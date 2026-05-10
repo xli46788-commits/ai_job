@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  
+  <!-- 🔑 核心修改：强制禁用移动端缩放，使用固定设计宽度 -->
+  <meta name="viewport" content="width=1200, initial-scale=1, maximum-scale=5, user-scalable=yes" />
+  
+  <!-- 可选：添加 JS 防御层，防止 runtime 被覆盖 -->
+  <script>
+    // 防止 uni-app 或其他脚本重写 viewport
+    document.addEventListener('DOMContentLoaded', function() {
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (meta && !meta.content.includes('width=1200')) {
+        meta.content = 'width=1200, initial-scale=1, maximum-scale=5, user-scalable=yes';
+      }
+      // 移除可能的缩放类（uni-app 有时会加）
+      document.documentElement.classList.remove('uni-h5-scale');
+    });
+  </script>
+
+  <title>AI指引未来</title>
+  
+  <!-- preload-links -->
+  <!-- app-context -->
+</head>
+<body>
+  <div id="app"><!--app-html--></div>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
