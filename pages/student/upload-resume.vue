@@ -177,8 +177,8 @@
 </template>
 
 <script>
-// 🚀 引入 API 配置
-import { API } from '../../utils/api.js';
+// 🚀 引入 API 接口和基础地址
+import { BASE_URL } from '../../utils/api.js';
 
 export default {
   data() {
@@ -192,23 +192,22 @@ export default {
         { icon: '🧠', text: '大模型语义理解', progress: 60 },
         { icon: '🏷️', text: '生成技能图谱', progress: 90 }
       ],
-      // 解析结果：未来将从后端真实的解析结果中映射
+      // 初始化为空，等待真实数据注入
       resumeInfo: {
-        name: '同学', major: '计算机科学与技术', education: '本科',
-        experience: '经验符合', target: '前端/后端开发',
-        skills: ['JavaScript', 'Vue.js', 'Python', 'Django', 'SQL']
+        name: '未知', major: '解析中', education: '解析中',
+        experience: '解析中', target: '解析中',
+        skills: []
       }
     }
   },
   methods: {
     selectFile() {
-      // 🚀 真实唤起设备文件选择器
+      // 真实唤起设备文件选择器
       uni.chooseFile({
         count: 1,
         extension: ['.pdf', '.doc', '.docx'],
         success: (res) => {
           const file = res.tempFiles[0];
-          // 统一路径和名称映射
           this.uploadedFile = {
             name: file.name || '未命名简历.pdf',
             size: file.size,
@@ -219,7 +218,7 @@ export default {
           // 在不支持 chooseFile 的环境下(如某些PC浏览器预览)使用模拟文件兜底
           uni.showToast({ title: '启用了本地演示文件', icon: 'none' });
           this.uploadedFile = { 
-            name: '2026_前端实习简历_卢天赐.pdf', 
+            name: '2026_前端实习简历_测试.pdf', 
             size: 1048576, 
             path: 'mock_path' 
           };
@@ -235,14 +234,14 @@ export default {
       this.progress = 0;
       this.parseComplete = false;
 
-      // 1. 制造一个“假进度条”跑到 80%，掩盖后端的网络和解析延迟
+      // 1. 制造一个“假进度条”跑到 80%，掩盖后端的网络和 AI 解析延迟
       const timer = setInterval(() => {
         if (this.progress < 85) {
           this.progress += Math.floor(Math.random() * 5) + 1;
         }
       }, 300);
 
-      // 如果是 mock_path 说明是在不支持文件上传的浏览器里强行点的，直接走兜底
+      // 如果是 mock_path 说明是在不支持文件上传的浏览器里兜底，直接触发假完成
       if (this.uploadedFile.path === 'mock_path') {
         setTimeout(() => this.finishParsing(timer, null), 2500);
         return;
@@ -250,12 +249,10 @@ export default {
 
       // 2. 拿到用户的合法身份证 (Token)
       const token = uni.getStorageSync('token');
-      // ⚠️ 注意：这里填入您 Django 后端的真实局域网 IP 或域名
-      const BASE_URL = 'http://127.0.0.1:8000/api/v1'; 
 
       // 3. 真实发起 Multipart/form-data 文件上传
       uni.uploadFile({
-        url: `${BASE_URL}/resumes/`, // 🚀 核心修复：去掉了多余的 /upload/ 小尾巴
+        url: `${BASE_URL}/resumes/`, // 使用统一管理的 BASE_URL
         filePath: this.uploadedFile.path,
         name: 'resume_file', // 必须与后端 Serializer 期待的字段名严格一致
         formData: {
@@ -268,6 +265,7 @@ export default {
           clearInterval(timer);
           if (uploadRes.statusCode === 201 || uploadRes.statusCode === 200) {
             const resData = JSON.parse(uploadRes.data);
+            // 上传且解析成功，把后端的全套数据发给收尾方法
             this.finishParsing(null, resData);
           } else {
             console.error("【后端拒绝了上传】状态码:", uploadRes.statusCode);
@@ -282,27 +280,49 @@ export default {
       });
     },
 
-    // 解析成功后的收尾动作
+    // 🚀 解析成功后的收尾动作（全栈联调核心）
     finishParsing(timer, backendData) {
       if (timer) clearInterval(timer);
       this.progress = 100;
       
-      // 如果后端传回了数据，提取用户信息（注：AI解析可能没有这么细的字段，我们做部分映射）
-      if (backendData) {
-         this.resumeInfo.name = uni.getStorageSync('user_info')?.username || '学生用户';
+      // 判断后端是否成功传回了 AI 解析的数据
+      if (backendData && (backendData.code === 201 || backendData.code === 200)) {
+         
+         const realData = backendData.data.parsed_info; // 获取后端的结构化字典
+         
+         // 🚀 把 AI 提取的真实数据赋值给前端 UI！
+         this.resumeInfo = {
+            name: realData.name !== '未知' ? realData.name : (uni.getStorageSync('user_info')?.username || '同学'),
+            major: realData.major || '未提取到专业',
+            education: realData.education || '未提供学历',
+            experience: realData.experience || '无经验信息',
+            target: realData.target || '未提供求职目标',
+            // 如果提取到了技能数组，就展示，否则展示兜底
+            skills: (realData.skills && realData.skills.length > 0) ? realData.skills : ['暂未提取到核心技能']
+         };
+
+         // 🚀 极其关键：将真实的简历 ID 存入本地缓存，这是下一步去匹配岗位的“入场券”！
+         uni.setStorageSync('current_resume_id', backendData.data.resume_id);
+      } else {
+         // 这是用于无网测试时的兜底假数据
+         this.resumeInfo = {
+            name: uni.getStorageSync('user_info')?.username || '测试同学',
+            major: '计算机科学', education: '本科', experience: '1年经验', target: '前端开发',
+            skills: ['Vue', 'JavaScript', '兜底测试技能']
+         };
       }
 
       setTimeout(() => {
         this.isParsing = false;
         this.parseComplete = true;
-        uni.showToast({ title: '分身构建完成', icon: 'success' });
+        uni.showToast({ title: '数字分身构建完成', icon: 'success' });
       }, 400);
     },
 
     // 失败兜底，保证演示不中断
     handleUploadFail(timer) {
       clearInterval(timer);
-      uni.showToast({ title: '网络异常，启用演示模式', icon: 'none' });
+      uni.showToast({ title: '网络异常，启用本地演示模式', icon: 'none' });
       this.finishParsing(null, null);
     },
 
@@ -313,6 +333,12 @@ export default {
       this.progress = 0;
     },
     goToMatchResult() {
+      // 判断是否拿到了刚刚上传成功的简历 ID，如果没有拿到说明上传失败了
+      const resumeId = uni.getStorageSync('current_resume_id');
+      if (!resumeId) {
+          uni.showToast({ title: '找不到真实简历数据，无法匹配', icon: 'none' });
+          return;
+      }
       uni.navigateTo({ url: '/pages/student/match-result' });
     },
     formatFileSize(size) {
@@ -418,6 +444,8 @@ $text-muted: #94a3b8;
 .file-meta { font-size: 12px; color: $text-muted; }
 .reupload-btn { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 14px; }
 .reupload-btn:hover { background: rgba(255,255,255,0.15); transform: rotate(90deg); }
+
+.action-row { width: 100%; }
 
 .parsing-container { display: flex; flex-direction: column; gap: 16px; }
 .progress-header { display: flex; justify-content: space-between; align-items: center; }

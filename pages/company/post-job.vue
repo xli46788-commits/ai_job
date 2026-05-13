@@ -63,6 +63,12 @@
                     <label class="crystal-label">招聘人数 <text class="glow-asterisk">*</text></label>
                     <input class="crystal-input" type="number" v-model="jobForm.count" placeholder="如：5" />
                   </view>
+                  
+                  <view class="form-item" style="grid-column: 1 / -1;">
+                    <label class="crystal-label">联系方式 <text class="glow-asterisk">*</text></label>
+                    <input class="crystal-input" v-model="jobForm.contact_info" placeholder="如：HR微信、手机或邮箱" />
+                  </view>
+
                 </view>
               </view>
             </view>
@@ -211,7 +217,8 @@ import { API } from '../../utils/api.js';
 export default {
   data() {
     return {
-      jobForm: { title: '', salary: '', location: '', count: '', description: '', requirements: '', tags: [] },
+      // 修改点：加上 contact_info
+      jobForm: { title: '', salary: '', location: '', count: '', description: '', requirements: '', tags: [], contact_info: '' },
       newTag: '',
       aiSuggestions: null,
       isAnalyzing: false,
@@ -264,12 +271,12 @@ export default {
       uni.showToast({ title: '草稿已保存', icon: 'success' });
     },
 
-    // 🚀 核心联调修复：补全了漏传的参数
     async submitJob() {
-      // 从表单数据中解构出所有的值（包括缺失的 count 和 tags）
-      const { title, salary, location, count, description, requirements, tags } = this.jobForm;
+      // 修改点：解构加了 contact_info
+      const { title, salary, location, count, description, requirements, tags, contact_info } = this.jobForm;
       
-      if (!title || !salary || !location || !count || !description || !requirements) {
+      // 修改点：校验加了 contact_info
+      if (!title || !salary || !location || !count || !description || !requirements || !contact_info) {
         uni.showToast({ title: '请完善星号必填项', icon: 'none' });
         return;
       }
@@ -279,15 +286,15 @@ export default {
       try {
         const postData = {
           job_name: title,
-          salary: salary,
+          job_salary: salary,
           job_location: location,
           job_description: description,
           job_requirement: requirements,
           is_published: true,
-          // 🚀 修复1：补充招聘人数
           recruit_count: parseInt(count) || 1, 
-          // 🚀 修复2：将前端的数组标签拼接成后端算法需要的逗号分隔字符串
-          job_keywords: tags.length > 0 ? tags.join(',') : '' 
+          job_keywords: tags.length > 0 ? tags.join(',') : '',
+          // 修改点：传参加上 contact_info
+          contact_info: contact_info
         };
         
         await API.postJob(postData);

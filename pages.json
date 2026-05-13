@@ -55,6 +55,13 @@
         "navigationStyle": "custom"
       }
     },
+	{
+	      "path": "pages/student/job-detail",
+	      "style": {
+	        "navigationBarTitleText": "职位详情",
+	        "navigationStyle": "custom" 
+	      }
+	    },
 	// ==================== O端 (管理员端) 页面 ====================
 	    {
 	      "path": "pages/admin/home",

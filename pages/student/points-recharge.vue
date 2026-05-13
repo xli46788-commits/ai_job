@@ -214,12 +214,11 @@ export default {
       selectedPayment: 1, 
       customAmount: '',
       customPoints: 0,
-      rechargeOptions: [
-        { id: 1, points: 500, price: 50, discount: null },
-        { id: 2, points: 1200, price: 100, discount: 8.3 },
-        { id: 3, points: 2500, price: 200, discount: 8 },
-        { id: 4, points: 6500, price: 500, discount: 7.7 }
-      ],
+      
+      // 🚀 1. 初始设为空数组，等待后端返回真实套餐
+      rechargeOptions: [], 
+      
+      // 支付方式通常与前端接入的 SDK（微信/支付宝）强绑定，写死是正常的
       paymentMethods: [
         { id: 1, name: '微信支付', icon: '💬', themeClass: 'wechat' }, 
         { id: 2, name: '支付宝', icon: '💳', themeClass: 'alipay' },
@@ -237,21 +236,47 @@ export default {
     }
   },
   mounted() {
-    // 🚀 页面加载时拉取最新积分
+    // 页面加载时并发拉取积分和套餐列表
     this.fetchUserPoints();
+    this.fetchRechargePackages();
   },
   methods: {
+    // 🚀 2. 真实拉取积分（去除假数据）
     async fetchUserPoints() {
       try {
         const res = await API.getUserProfile();
-        // 兼容不同的后端返回结构
         const userData = res.data || res;
-        // 假设积分存在 profile 里，若无则默认为 0
         this.currentPoints = userData.profile?.points || userData.points || 0;
       } catch (error) {
-        console.log("拉取积分失败，走兜底演示");
-        this.currentPoints = 1250; // 兜底数据
+        console.error("拉取积分失败:", error);
+        this.currentPoints = 0; // 真实环境报错时应显示 0
       }
+    },
+
+    // 🚀 3. 新增：从后端拉取充值套餐列表
+    async fetchRechargePackages() {
+      try {
+        const res = await API.getRechargeOptions();
+        const packages = res.data?.results || res.data || [];
+        if (packages.length > 0) {
+          this.rechargeOptions = packages;
+        } else {
+          this.loadDefaultPackages();
+        }
+      } catch (error) {
+        console.error("拉取套餐失败，使用本地默认套餐:", error);
+        this.loadDefaultPackages();
+      }
+    },
+
+    // 兜底本地套餐（如果后端没写这个接口，保证页面不白屏）
+    loadDefaultPackages() {
+      this.rechargeOptions = [
+        { id: 1, points: 500, price: 50, discount: null },
+        { id: 2, points: 1200, price: 100, discount: 8.3 },
+        { id: 3, points: 2500, price: 200, discount: 8 },
+        { id: 4, points: 6500, price: 500, discount: 7.7 }
+      ];
     },
 
     selectOption(id) {
@@ -260,9 +285,11 @@ export default {
       this.customPoints = 0;
     },
     selectPayment(id) { this.selectedPayment = id; },
+    
     handleCustomInput(e) {
       let val = e.detail.value;
       if (val > 0) {
+        // 自定义充值逻辑：1元 = 10积分，加赠 10%
         this.customPoints = Math.floor(parseFloat(val) * 10 * 1.1);
         this.selectedOption = null; 
       } else {
@@ -270,7 +297,7 @@ export default {
       }
     },
 
-    // 🚀 核心：真实调用充值接口
+    // 🚀 4. 修复重大漏洞：充值失败绝不能加积分！
     confirmRecharge() {
       if (this.totalPrice <= 0) {
         uni.showToast({ title: '请输入有效的充值金额', icon: 'none' });
@@ -285,10 +312,10 @@ export default {
         confirmColor: '#3b82f6',
         success: async (res) => {
           if (res.confirm) {
-            uni.showLoading({ title: '拉取收银台...', mask: true });
+            uni.showLoading({ title: '安全拉起支付...', mask: true });
             
             try {
-              // 提交充值请求
+              // 提交真实充值请求
               await API.rechargePoints({
                 amount: this.totalPrice,
                 points: pointsToAdd,
@@ -296,15 +323,18 @@ export default {
               });
               
               uni.hideLoading();
-              uni.showToast({ title: '充值成功', icon: 'success' });
-              this.currentPoints += pointsToAdd; // 乐观更新 UI 积分
+              uni.showToast({ title: '支付成功', icon: 'success' });
               
+              // 支付真的成功了，才给前端 UI 加上积分
+              this.currentPoints += pointsToAdd; 
               setTimeout(() => { uni.navigateBack(); }, 1500);
+              
             } catch (error) {
               uni.hideLoading();
-              // 兜底演示逻辑
-              uni.showToast({ title: '充值演示成功', icon: 'success' });
-              this.currentPoints += pointsToAdd; 
+              // 🚀 真实环境：如果后端拒绝或网络断开，绝对不能加积分！
+              let errorMsg = '支付中断或失败';
+              if (error.data && error.data.detail) errorMsg = error.data.detail;
+              uni.showToast({ title: errorMsg, icon: 'none' });
             }
           }
         }

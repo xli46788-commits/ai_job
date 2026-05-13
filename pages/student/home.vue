@@ -71,12 +71,21 @@
                     <text class="section-icon">💼</text>
                     <text class="section-title">为你精准推荐</text>
                   </view>
-                  <view class="ghost-btn outline micro" @click="seeMoreJobs">
-                    <text>查看更多机会 →</text>
+                  <view class="ghost-btn outline micro" @click="handleBatchMatch">
+                    <text>🔄 重新智能匹配</text>
                   </view>
                 </view>
                 
-                <view class="jobs-grid">
+                <view class="empty-jobs-state ultra-glass-card" v-if="recommendedJobs.length === 0 && !isLoading">
+                  <text class="empty-icon">📭</text>
+                  <text class="empty-text">AI 引擎正在待命</text>
+                  <text class="empty-sub">请先上传简历，或点击右上角「重新智能匹配」获取机会</text>
+                  <view class="liquid-btn micro mt-16" @click="goToUploadResume">
+                     <text class="btn-txt">去上传简历</text>
+                  </view>
+                </view>
+
+                <view class="jobs-grid" v-else>
                   <view 
                     v-for="(job, index) in recommendedJobs" 
                     :key="index" 
@@ -146,7 +155,7 @@
                 <view class="insight-block primary">
                   <view class="insight-title">💡 今日求职洞察</view>
                   <view class="message-text">
-                    你的简历中 <text class="highlight-text">React</text> 和 <text class="highlight-text">Vue</text> 的项目经历很丰富，但在推荐岗位中，包含“性能优化”关键词的 JD 转化率更高。建议对简历进行微调。
+                    根据大模型全网分析，近期 <text class="highlight-text">AIGC</text> 与 <text class="highlight-text">大模型应用</text> 相关的岗位薪资溢价高达 30%。建议您使用左侧功能丰富简历技能。
                   </view>
                 </view>
 
@@ -202,19 +211,21 @@ import { API } from '../../utils/api.js';
 export default {
   data() {
     return {
-      userName: '同学', // 默认称呼
-      recommendedJobs: [], // 初始化为空，等待后端下发
+      userName: '同学',
+      recommendedJobs: [], 
       isLoading: false
     }
   },
-  mounted() {
-    // 🚀 2. 页面加载时获取本地存储的用户真实姓名
+  onShow() {
+    // 页面每次显示时，刷新用户名和真实岗位列表
     const userInfo = uni.getStorageSync('user_info');
     if (userInfo && userInfo.username) {
       this.userName = userInfo.username;
     }
-    
-    // 🚀 3. 向后端拉取真实的 AI 匹配岗位结果
+    this.fetchRecommendedJobs();
+  },
+  mounted() {
+    // 兼容 Web 端的生命周期
     this.fetchRecommendedJobs();
   },
   methods: {
@@ -225,53 +236,74 @@ export default {
       return '#f59e0b';
     },
 
-    // 🚀 4. 请求后端获取真实的匹配记录
+    // 🚀 2. 真实数据拉取逻辑：从 Django 获取匹配记录，并装载“万能 ID 提取器”
     async fetchRecommendedJobs() {
       this.isLoading = true;
       try {
         const res = await API.getMatchResults();
-        const records = res.data || res.results || res || [];
+        const records = res.data?.data || res.data?.results || res.data || res.results || res || [];
 
-        if (records.length > 0) {
-          // 将后端的 MatchResult 结构映射为卡片渲染所需的字段
+        if (records && records.length > 0) {
           this.recommendedJobs = records.map(item => {
-            // 解析大模型返回的关键词串，转为标签数组
-            const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : ['热招'];
+            const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : ['急招'];
+            const jobData = item.job || {};
             
             return {
-              id: item.job?.id || item.job_id,
-              title: item.job?.job_name || '未命名职位',
-              company: item.job?.company_name || '某知名企业', // 依赖后端的具体关联名称
-              salary: item.job?.salary || '面议',
-              type: item.job?.experience || '经验不限',
-              location: item.job?.job_location || '全国',
+              // 🚀 万能 ID 提取器
+              id: (typeof item.job === 'string' ? item.job : null) || jobData?.job_id || jobData?.id || item.job_id || item.id,
+              resume_id: item.resume?.resume_id || item.resume?.id || item.resume_id, 
+              title: jobData.job_name || item.job_name || '优质职位',
+              company: jobData.company?.company_name || jobData.company?.username || item.company_name || '直招企业', 
+              salary: jobData.salary || item.salary || '面议',
+              type: jobData.experience || item.experience || '经验不限',
+              location: jobData.job_location || item.job_location || '全国',
               tags: keywordArray,
-              matchRate: item.match_score || 0
+              matchRate: item.match_score || parseInt(item.sort_weight * 100) || 0
             };
           });
         } else {
-          // 如果数据库里目前还没有生成匹配记录，加载演示数据防白屏
-          this.loadMockJobs();
+          this.recommendedJobs = [];
         }
       } catch (error) {
-        console.error('获取岗位失败，转入兜底模式:', error);
-        this.loadMockJobs(); // 接口如果报错，也展示兜底数据
+        console.error('获取岗位失败:', error);
+        uni.showToast({ title: '网络开小差了', icon: 'none' });
       } finally {
         this.isLoading = false;
       }
     },
 
-    // 兜底演示数据
-    loadMockJobs() {
-      this.recommendedJobs = [
-        { title: '前端开发实习生', company: '字节跳动科技有限公司', salary: '150-200元/天', type: '实习', location: '北京·海淀', tags: ['Vue', 'React', '工程化'], matchRate: 92 },
-        { title: '初级产品经理', company: '腾讯科技', salary: '200-250元/天', type: '校招', location: '深圳·南山', tags: ['产品设计', '用户研究', '数据思维'], matchRate: 88 },
-        { title: '数据分析实习生', company: '蚂蚁集团', salary: '180-220元/天', type: '实习', location: '上海·浦东', tags: ['Python', 'SQL', '商业洞察'], matchRate: 85 },
-        { title: '全栈开发工程师', company: '美团', salary: '250-300元/天', type: '校招', location: '杭州·西湖', tags: ['Node.js', 'Java', '高并发'], matchRate: 78 }
-      ];
+    // 🚀 3. 新增核心功能：一键触发 AI 大模型批量匹配
+    async handleBatchMatch() {
+      const resumeId = uni.getStorageSync('current_resume_id');
+      
+      if (!resumeId) {
+        uni.showModal({
+          title: '温馨提示',
+          content: '请先在左侧构建数字分身（上传简历），引擎才能为您精准匹配。',
+          confirmText: '去上传',
+          success: (res) => { if (res.confirm) this.goToUploadResume(); }
+        });
+        return;
+      }
+
+      uni.showLoading({ title: 'AI引擎全网检索中...', mask: true });
+      try {
+        const res = await API.batchMatchJobs({ resume_id: resumeId });
+        uni.hideLoading();
+        
+        if (res.code === 200 || res.statusCode === 200) {
+           uni.showToast({ title: '匹配成功！', icon: 'success' });
+           this.fetchRecommendedJobs();
+        } else {
+           uni.showToast({ title: res.msg || '匹配失败', icon: 'none' });
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('批量匹配报错:', error);
+        uni.showToast({ title: '匹配超时，大模型排队中', icon: 'none' });
+      }
     },
 
-    // 🚀 5. 修复安全退出逻辑 (与 login.vue 和 Admin 等界面的缓存键值严格对齐)
     logout() {
       uni.showModal({
         title: '退出登录',
@@ -279,11 +311,10 @@ export default {
         confirmColor: '#ef4444',
         success: (res) => {
           if (res.confirm) {
-            // 清理正确的全局缓存
             uni.removeStorageSync('token');
             uni.removeStorageSync('user_role');
             uni.removeStorageSync('user_info');
-            // 清空栈并跳转回登录页
+            uni.removeStorageSync('current_resume_id'); 
             uni.reLaunch({ url: '/pages/auth/login' });
           }
         }
@@ -296,8 +327,21 @@ export default {
     goToProfile() { uni.navigateTo({ url: '/pages/student/profile' }); },
     goToAIPolish() { uni.navigateTo({ url: '/pages/student/ai-polish' }); },
     goToMatchResult() { uni.navigateTo({ url: '/pages/student/match-result' }); },
-    viewJobDetail(job) { uni.showToast({ title: `查看 ${job.title} 详情`, icon: 'none' }); },
-    seeMoreJobs() { uni.showToast({ title: '加载更多岗位...', icon: 'none' }); }
+    
+    // 🚀 安全跳转至详情页逻辑
+    viewJobDetail(job) { 
+      const targetId = job.id || job.job_id;
+      
+      if (!targetId || targetId === 'undefined') {
+          uni.showToast({ title: '岗位数据异常，无法查看', icon: 'none' });
+          console.error("❌ 错误：这个岗位的 ID 是空的！完整数据为：", job);
+          return;
+      }
+      
+      uni.navigateTo({
+        url: `/pages/student/job-detail?id=${targetId}`
+      });
+    },
   }
 }
 </script>
@@ -391,6 +435,16 @@ $text-muted: #94a3b8;
 .section-title-container { display: flex; align-items: center; gap: 12px; }
 .section-icon { font-size: 22px; filter: drop-shadow(0 0 8px rgba(255,255,255,0.2)); }
 .section-title { font-size: 20px; font-weight: 600; color: #fff; letter-spacing: 0.5px; }
+
+/* 新增的空状态 UI */
+.empty-jobs-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 60px 20px; text-align: center; border-radius: 20px;
+  background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);
+}
+.empty-icon { font-size: 48px; opacity: 0.8; margin-bottom: 16px; filter: drop-shadow(0 0 10px rgba(59,130,246,0.3)); }
+.empty-text { font-size: 18px; font-weight: 600; color: #e2e8f0; margin-bottom: 8px; }
+.empty-sub { font-size: 14px; color: #94a3b8; max-width: 80%; line-height: 1.6; }
 
 /* 双列网格卡片 */
 .jobs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }

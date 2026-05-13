@@ -1,6 +1,5 @@
 <template>
   <view class="student-universe-web">
-    <!-- 极光背景层 -->
     <view class="aurora-wrapper">
       <view class="orb orb-1"></view>
       <view class="orb orb-2"></view>
@@ -9,9 +8,7 @@
       <view class="vignette-overlay"></view>
     </view>
     
-    <!-- 主容器 -->
     <view class="workspace-layout">
-      <!-- 顶部导航 -->
       <view class="glass-header fade-in-down">
         <view class="header-left">
           <view class="icon-btn" @click="goBack" title="返回上一页">
@@ -26,15 +23,12 @@
         </view>
       </view>
       
-      <!-- 双舱工作区 -->
       <view class="workspace-body">
         
-        <!-- ==================== 左侧：AI 洞察主控舱 ==================== -->
         <view class="left-dashboard-panel fade-in-up delay-1">
           <scroll-view class="left-scroll custom-scrollbar" scroll-y>
             <view class="left-content-inner">
               
-              <!-- 核心分数卡片 -->
               <view class="ultra-glass-card score-card">
                 <view class="score-header">
                   <text class="score-label">综合匹配度得分</text>
@@ -45,7 +39,6 @@
                 
                 <view class="score-circle-wrapper">
                   <view class="score-circle">
-                    <!--  SVG 环形进度条 -->
                     <svg class="progress-svg" viewBox="0 0 160 160">
                       <defs>
                         <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -69,7 +62,6 @@
                         filter="url(#glow)"
                       />
                     </svg>
-                    <!-- 中心分数 -->
                     <view class="score-center">
                       <text class="score-number" :style="{ color: scoreColor }">{{ score }}</text>
                       <text class="score-percent" :style="{ color: scoreColor }">%</text>
@@ -82,7 +74,6 @@
                   <text class="sparkle">✨</text>
                 </view>
                 
-                <!-- 数据维度 -->
                 <view class="stats-row">
                   <view class="stat-item">
                     <text class="stat-val">92.5%</text>
@@ -101,7 +92,6 @@
                 </view>
               </view>
               
-              <!-- AI 优化建议 -->
               <view class="ultra-glass-card suggestions-card">
                 <view class="card-title-bar">
                   <text class="icon">🎯</text>
@@ -129,7 +119,6 @@
                 </view>
               </view>
 
-              <!-- 快捷引流操作 -->
               <view class="quick-actions-grid">
                 <view class="action-btn outline" @click="goToAIPolish">
                   <text class="a-icon">✨</text>
@@ -152,7 +141,6 @@
           </scroll-view>
         </view>
 
-        <!-- ==================== 右侧：推荐岗位资源池 ==================== -->
         <view class="right-jobs-panel fade-in-left delay-2">
           <view class="panel-header">
             <view class="ph-left">
@@ -165,7 +153,6 @@
           </view>
           
           <scroll-view class="jobs-scroll custom-scrollbar" scroll-y>
-            <!-- PC端双列瀑布流/网格 -->
             <view class="jobs-grid">
               <view 
                 v-for="(job, index) in recommendedJobs" 
@@ -174,7 +161,6 @@
                 :style="`animation-delay: ${0.2 + index * 0.1}s;`"
                 @click="viewJobDetail(job)"
               >
-                <!-- 右上角发光匹配度标签 -->
                 <view class="neon-match-badge" :style="getMatchStyle(job.matchRate)">
                   <text class="pulse-dot"></text>
                   <text class="badge-text">{{ job.matchRate }}% 契合</text>
@@ -224,7 +210,7 @@ export default {
   data() {
     return {
       score: 0,
-      targetScore: 0, // 初始为0，将根据后端真实数据动态计算
+      targetScore: 0, 
       recommendedJobs: [],
       optimizationSuggestions: [],
       isLoading: false
@@ -251,7 +237,7 @@ export default {
     }
   },
   mounted() {
-    this.fetchMatchResults(); // 🚀 页面加载时请求后端
+    this.fetchMatchResults(); // 页面加载时请求后端
   },
   methods: {
     getMatchStyle(rate) {
@@ -263,6 +249,7 @@ export default {
       
       return { '--theme': color, '--bg': `${color}15`, '--glow': `${color}40` };
     },
+    
     animateScore() {
       let current = 0;
       const timer = setInterval(() => {
@@ -278,125 +265,179 @@ export default {
     // 🚀 核心联调：获取后端智能匹配报告
     async fetchMatchResults() {
       this.isLoading = true;
-      uni.showLoading({ title: 'AI 匹配计算中...' });
+      uni.showLoading({ title: 'AI 匹配数据拉取中...' });
       
       try {
         const res = await API.getMatchResults();
-        const records = res.data || res.results || res || [];
+        const records = res.data?.results || res.data || res.results || res || [];
 
         if (records.length > 0) {
-          // 1. 映射后端数据为前端卡片格式
+          // 1. 映射后端真实数据为前端卡片格式
           this.recommendedJobs = records.map(item => {
-            // 后端返回的 job_keywords 可能是逗号分隔的字符串
             const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : ['热招'];
+            const jobData = item.job || {};
             
             return {
-              id: item.job?.id || item.job_id || item.job,
-              resume_id: item.resume?.id || item.resume_id || item.resume, // 投递时需要用到
-              title: item.job?.job_name || item.job?.title || '匹配岗位',
-              company: item.job?.company_name || '精选企业',
-              salary: item.job?.salary || '面议',
-              location: item.job?.job_location || '全国',
+              // 🚀 万能 ID 提取器：兼容纯字符串或对象格式
+              id: (typeof item.job === 'string' ? item.job : null) || jobData?.job_id || jobData?.id || item.job_id || item.id,
+              resume_id: item.resume?.resume_id || item.resume?.id || item.resume_id, 
+              title: jobData.job_name || '匹配岗位',
+              company: jobData.company?.company_name || jobData.company?.username || '知名企业',
+              salary: jobData.salary || '面议',
+              location: jobData.job_location || '全国',
               tags: keywordArray,
-              matchRate: item.match_score || 0
+              matchRate: item.match_score || parseInt(item.sort_weight * 100) || 0
             };
           });
 
-          // 2. 动态计算平均匹配度作为左侧大圆环的分数
+          // 2. 动态计算平均匹配度
           const totalScore = this.recommendedJobs.reduce((sum, job) => sum + job.matchRate, 0);
           this.targetScore = Math.round(totalScore / this.recommendedJobs.length);
 
-          // 3. 提取后端返回的真实优化建议
+          // 3. 🚀 安全解析 AI 大模型报告
           const suggestions = [];
-          if (records[0] && records[0].optimize_suggestion) {
-             suggestions.push({ icon: '💡', title: '核心短板诊断', content: records[0].optimize_suggestion });
+          const topMatch = records[0]; 
+          
+          if (topMatch.llm_report) {
+             let report = {};
+             try {
+                let rawStr = topMatch.llm_report;
+                if (typeof rawStr === 'string') {
+                    rawStr = rawStr.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false');
+                    report = JSON.parse(rawStr);
+                } else {
+                    report = rawStr;
+                }
+             } catch (e) {
+                console.error("AI报告解析失败(后端返回了非标准JSON):", e);
+             }
+             
+             if (report.summary) suggestions.push({ icon: '🧠', title: 'AI 综合评估', content: report.summary });
+             if (report.weaknesses && report.weaknesses.length > 0) {
+                 report.weaknesses.slice(0, 2).forEach(w => suggestions.push({ icon: '🎯', title: '短板诊断', content: w }));
+             }
+             if (report.strengths && report.strengths.length > 0) {
+                 suggestions.push({ icon: '✨', title: '亮点挖掘', content: report.strengths[0] });
+             }
+          } else if (topMatch.optimize_suggestion) {
+             suggestions.push({ icon: '💡', title: '匹配度综合建议', content: topMatch.optimize_suggestion });
           }
-          // 如果后端没有建议，给一条通用的
+
           if (suggestions.length === 0) {
              suggestions.push({ icon: '📝', title: '简历排版重构', content: '建议使用更简洁的“STAR法则”项目描述，突出关键业务产出。' });
           }
           this.optimizationSuggestions = suggestions;
 
         } else {
-          this.loadMockData(); // 无数据走兜底
+          uni.showToast({ title: '暂无匹配数据，请先上传简历并匹配', icon: 'none' });
+          this.targetScore = 0;
         }
         
-        // 数据准备完毕后启动雷达动画
+        // 🚀 执行分数动画！
         this.animateScore();
         
       } catch (error) {
         console.error('获取匹配结果失败:', error);
-        this.loadMockData();
-        this.animateScore();
+        uni.showToast({ title: '网络异常，请重试', icon: 'none' });
       } finally {
         uni.hideLoading();
         this.isLoading = false;
       }
     },
 
-    // 🚀 核心联调：真实触发简历投递
-    applyJob(job) {
-      uni.showModal({
-        title: '确认一键投递',
-        content: `确定要使用分身名片向 ${job.company} 投递简历吗？`,
-        confirmColor: '#3b82f6',
-        success: async (res) => {
-          if (res.confirm) {
-            uni.showLoading({ title: '加密投递中...', mask: true });
-            try {
-              // 请求后端投递接口，必须传 job_id 和 resume_id
-              await API.applyForJob({
-                job_id: job.id,
-                resume_id: job.resume_id
-              });
-              
-              uni.hideLoading();
-              uni.showToast({ title: '投递成功', icon: 'success' });
-            } catch (error) {
-              uni.hideLoading();
-              // 兜底提示，防止演示中断
-              uni.showToast({ title: '投递成功(演示)', icon: 'success' });
+    async applyJob(job) {
+          uni.showModal({
+            title: '确认一键投递',
+            content: `确定要使用数字分身向 ${job.company} 投递简历吗？`,
+            confirmColor: '#3b82f6',
+            success: async (res) => {
+              if (res.confirm) {
+                
+                // 🚀 兜底逻辑：防止列表里的 resume_id 为空
+                const finalResumeId = job.resume_id || uni.getStorageSync('current_resume_id');
+                if (!finalResumeId) {
+                    uni.showToast({ title: '请先去首页上传简历，构建数字分身', icon: 'none' });
+                    return;
+                }
+    
+                uni.showLoading({ title: '加密投递中...', mask: true });
+                
+                try {
+                  await API.applyForJob({
+                    job_id: job.id,
+                    resume_id: finalResumeId
+                  });
+                  
+                  uni.hideLoading(); // ✅ 成功时隐藏，配对成功
+                  uni.showToast({ title: '投递成功！', icon: 'success' });
+                  
+                } catch (error) {
+                  uni.hideLoading(); // ✅ 失败时强行隐藏，解决黄字警告
+                  
+                  // 🚀 榨取后端真实的报错字段
+                  let errorMsg = '网络拥挤，请重试';
+                  if (error.data && typeof error.data === 'object') {
+                      const firstKey = Object.keys(error.data)[0];
+                      if (Array.isArray(error.data[firstKey])) {
+                          errorMsg = error.data[firstKey][0];
+                      } else if (typeof error.data[firstKey] === 'string') {
+                          errorMsg = error.data[firstKey];
+                      }
+                  }
+                  
+                  // ⚠️ 延迟 100 毫秒弹窗，防止被 hideLoading 强行吞掉
+                  setTimeout(() => {
+                    uni.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
+                  }, 100);
+                  
+                  console.error("投递报错详情:", error.data || error);
+                }
+              }
             }
-          }
-        }
-      });
+          });
+        },
+
+    viewMoreJobs() {
+      uni.showToast({ title: '正在为您跳转岗位大厅...', icon: 'none' });
+      setTimeout(() => {
+        uni.navigateBack(); 
+      }, 800);
     },
 
-    viewJobDetail(job) { uni.showToast({ title: `查看 ${job.title} 详情`, icon: 'none' }); },
+    // 🚀 安全跳转至详情页逻辑
+    viewJobDetail(job) { 
+      const targetId = job.id || job.job_id;
+      
+      if (!targetId || targetId === 'undefined') {
+          uni.showToast({ title: '岗位数据异常，无法查看', icon: 'none' });
+          console.error("❌ 错误：这个岗位的 ID 是空的！完整数据为：", job);
+          return;
+      }
+      
+      uni.navigateTo({
+        url: `/pages/student/job-detail?id=${targetId}`
+      });
+    },
+    
     applySuggestion(suggestion) {
       uni.showLoading({ title: 'AI 注入优化中...' });
       setTimeout(() => {
         uni.hideLoading();
-        uni.showToast({ title: '简历基因已重塑', icon: 'success' });
-        if (this.targetScore < 98) {
-          this.targetScore += 3;
-          this.animateScore();
-        }
-      }, 1500);
+        uni.showToast({ title: '已同步至工作台', icon: 'success' });
+      }, 1000);
     },
+    
     goToAIPolish() { uni.navigateTo({ url: '/pages/student/ai-polish' }); },
+    
     exportResult() {
-      uni.showLoading({ title: '正在生成分析报告...' });
+      uni.showLoading({ title: '正在生成 PDF 报告...' });
       setTimeout(() => {
         uni.hideLoading();
-        uni.showToast({ title: '报告已导出至云端', icon: 'success' });
+        uni.showToast({ title: '报告已导出', icon: 'success' });
       }, 1500);
     },
-    goBack() { uni.navigateBack(); },
-
-    // 兜底演示数据
-    loadMockData() {
-      this.targetScore = 89;
-      this.recommendedJobs = [
-        { id: 1, resume_id: 1, title: '前端开发实习生', company: '字节跳动科技有限公司', matchRate: 92, tags: ['Vue', 'React', 'JavaScript'], location: '北京' },
-        { id: 2, resume_id: 1, title: '产品经理实习生', company: '腾讯科技', matchRate: 85, tags: ['产品设计', '用户研究', 'PRD'], location: '深圳' },
-        { id: 3, resume_id: 1, title: '数据分析师实习生', company: '蚂蚁集团', matchRate: 88, tags: ['Python', 'SQL', '数据挖掘'], location: '上海' }
-      ];
-      this.optimizationSuggestions = [
-        { icon: '📝', title: '简历排版重构', content: '发现大量长段落。建议使用更简洁的“STAR法则”项目描述，突出关键业务产出。' },
-        { icon: '💼', title: '核心技术栈强化', content: '目标岗位对“性能优化”要求高，建议在项目经验中补充打包构建和加载优化的具体数据。' }
-      ];
-    }
+    
+    goBack() { uni.navigateBack(); }
   }
 }
 </script>

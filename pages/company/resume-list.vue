@@ -68,7 +68,7 @@
                     <text class="c-name">{{ resume.name }}</text>
                     <text class="c-tag" :class="resume.status">{{ resume.statusText }}</text>
                   </view>
-                  <text class="c-desc">{{ resume.major }} · {{ resume.education }}</text>
+                  <text class="c-desc">应聘：{{ resume.jobName }}</text>
                 </view>
                 <view class="c-match" :style="getMatchStyle(resume.matchRate)">
                   <text class="m-val">{{ resume.matchRate }}</text>
@@ -97,7 +97,7 @@
                         <text class="dh-name">{{ selectedResume.name }}</text>
                         <text class="neon-status" :class="selectedResume.status">{{ selectedResume.statusText }}</text>
                       </view>
-                      <text class="dh-school">{{ selectedResume.major }} | {{ selectedResume.education }} | {{ selectedResume.experience }}</text>
+                      <text class="dh-school">应聘岗位：{{ selectedResume.jobName }}</text>
                     </view>
                   </view>
                   <view class="dh-actions">
@@ -121,28 +121,30 @@
                 </view>
                 <view class="insight-body">
                   <view class="insight-text">
-                    <text class="highlight">💡 核心优势：</text>该候选人的技能栈 ({{ (selectedResume.skills || ['未录入']).slice(0,2).join(', ') }}) 与岗位需求高度吻合。其 {{ selectedResume.experience }} 能够快速适应团队当前的业务节奏。
+                    <text class="highlight">💡 核心优势：</text>
+                    {{ selectedResume.insight.advantages || '候选人的技术栈与岗位需求基本吻合。' }}
                   </view>
                   <view class="insight-text mt-10">
-                    <text class="highlight warning">⚠️ 风险提示：</text>部分项目经验可能需要入职后进行针对性业务培训，建议在面试中重点考察其学习能力。
+                    <text class="highlight warning">⚠️ 风险提示：</text>
+                    {{ selectedResume.insight.risks || '暂无明显风险。' }}
                   </view>
                 </view>
               </view>
 
               <view class="info-grid">
                 <view class="glass-block">
-                  <view class="block-title">专业技能</view>
+                  <view class="block-title">AI 提取专业技能</view>
                   <view class="skills-wrapper">
-                    <view v-for="(skill, index) in selectedResume.skills" :key="index" class="neon-tag active">
+                    <view v-for="(skill, index) in (selectedResume.insight.skills || ['暂无技能数据'])" :key="index" class="neon-tag active">
                       {{ skill }}
                     </view>
                   </view>
                 </view>
                 
                 <view class="glass-block span-2">
-                  <view class="block-title">履历与经验</view>
+                  <view class="block-title">履历与经验摘要</view>
                   <view class="exp-content">
-                    <text class="p-text">{{ selectedResume.experience }}。在过往的项目经历中，具备良好的团队协作能力和问题解决能力，期待在新的平台上发挥专长。</text>
+                    <text class="p-text">{{ selectedResume.insight.experience_summary || 'AI 正在分析其过往经历...' }}</text>
                   </view>
                 </view>
               </view>
@@ -194,7 +196,6 @@
 </template>
 
 <script>
-// 🚀 引入真实接口
 import { API } from '../../utils/api.js';
 
 export default {
@@ -209,16 +210,16 @@ export default {
       sortOptions: ['匹配度从高到低', '匹配度从低到高', '最新投递'],
       statusOptions: ['全部状态', '待处理', '面试中', '不合适'],
       
-      resumes: [], // 从后端拉取的数据
+      resumes: [], 
       filteredResumes: [],
       selectedResume: null,
       
-      // 字典映射：后端 status 状态码 (1,2,3) -> 前端英文标识与中文展示
+      // 🚀 核心对齐：和 Django 后端 JobApplication 模型的 status 字段完全匹配
       statusMap: {
-        1: { str: 'pending', text: '待处理' },
-        2: { str: 'interview', text: '面试中' },
-        3: { str: 'rejected', text: '不合适' },
-        4: { str: 'interview', text: '已发Offer' }
+        'pending': { str: 'pending', text: '待处理' },
+        'viewed': { str: 'interview', text: '已查看' },
+        'interview': { str: 'interview', text: '面试中' },
+        'rejected': { str: 'rejected', text: '不合适' }
       }
     }
   },
@@ -232,41 +233,49 @@ export default {
   },
   
   mounted() {
-    this.fetchDeliveries(); // 🚀 页面挂载时拉取真实投递记录
+    this.fetchDeliveries(); 
   },
   
   methods: {
-    // 🚀 核心联调：获取投递到本企业的简历记录
     async fetchDeliveries() {
       uni.showLoading({ title: '扫描人才库...' });
       try {
         const res = await API.getCompanyDeliveries();
-        const records = res.data || res.results || res || [];
+        const records = res.data?.results || res.data || res.results || res || [];
         
         if (records.length > 0) {
-          // 将后端的投递记录映射为卡片需要的数据
+          // 🚀 真实数据结构映射，解析后端传来的 ai_insight JSON 数据
           this.resumes = records.map(r => {
-            const statObj = this.statusMap[r.delivery_status] || this.statusMap[1];
+            const statObj = this.statusMap[r.status] || this.statusMap['pending'];
+            
+            // 安全解析 JSON
+            let parsedInsight = {};
+            try {
+               parsedInsight = r.ai_insight ? JSON.parse(r.ai_insight) : {};
+            } catch (e) {
+               console.error("AI 报告解析失败", e);
+            }
+
             return {
-              id: r.id, // 投递记录的 ID，流转状态时需要用到
-              name: r.user_name || r.user || '求职者',
-              major: r.resume_major || '计算机专业',
-              education: r.resume_education || '本科',
-              experience: r.resume_exp || '经验符合',
-              skills: ['Python', 'Vue'], // 演示标签
-              matchRate: r.match_result?.match_score || 85, // 动态匹配度
+              id: r.application_id, 
+              name: r.student_name || '求职者',
+              jobName: r.job_name || '目标岗位',
+              matchRate: r.match_score || 0, 
               status: statObj.str,
-              statusText: statObj.text
+              statusText: statObj.text,
+              backendStatus: r.status, // 保存真实的后端状态用于传参
+              insight: parsedInsight   // 解析后的 AI 报告对象
             };
           });
         } else {
-          this.loadMockData(); // 如果后端目前没数据，先加载假数据防白屏
+          this.resumes = []; 
         }
         
         this.filterByStatus();
       } catch (error) {
         console.error("获取简历失败", error);
-        this.loadMockData();
+        uni.showToast({ title: '拉取数据失败', icon: 'none' });
+        this.resumes = [];
         this.filterByStatus();
       } finally {
         uni.hideLoading();
@@ -315,54 +324,42 @@ export default {
     },
     
     contactApplicant(resume) {
-      uni.showActionSheet({
-        itemList: ['发起在线聊天', '发送面试邀请', '获取联系电话'],
-        success: () => { uni.showToast({ title: '操作成功', icon: 'success' }) }
-      })
+      uni.showToast({ title: '即将唤起 IM...', icon: 'none' })
     },
     
-    // 🚀 核心联调：更新投递状态
     showStatusOptions(resume) {
       uni.showActionSheet({
         itemList: ['标记为：待处理', '标记为：面试中', '标记为：不合适'],
         success: async (res) => {
-          // res.tapIndex 对应 0, 1, 2。而后端期望的是 1, 2, 3
-          const backendStatusInt = res.tapIndex + 1; 
+          // 🚀 将前端点击的 index 映射给后端支持的枚举值
+          const backendStatusStr = ['pending', 'interview', 'rejected'][res.tapIndex]; 
           
           uni.showLoading({ title: '状态流转中...' });
           try {
-            // 调用后端的 update_status 自定义动作接口
-            await API.updateDeliveryStatus(resume.id, { delivery_status: backendStatusInt });
+            await API.updateDeliveryStatus(resume.id, { status: backendStatusStr });
             
-            // 更新 UI
-            const newStatus = this.statusMap[backendStatusInt];
+            // 更新当前 UI
+            const newStatus = this.statusMap[backendStatusStr];
             resume.status = newStatus.str;
             resume.statusText = newStatus.text;
+            resume.backendStatus = backendStatusStr;
             
             uni.hideLoading();
             uni.showToast({ title: '简历流转成功', icon: 'success' });
             
-            // 如果在特定标签页下更新了状态，刷新列表过滤
+            // 重新刷新列表分布
             if (this.statusIndex !== 0) {
               this.filterByStatus();
             }
           } catch (error) {
             uni.hideLoading();
-            uni.showToast({ title: '流转失败(非真实数据)', icon: 'none' });
+            uni.showToast({ title: '流转失败请重试', icon: 'none' });
           }
         }
       })
     },
     
-    goBack() { uni.navigateBack() },
-    
-    // 兜底数据
-    loadMockData() {
-      this.resumes = [
-        { id: 991, name: '张三', major: '计算机科学与技术', education: '本科', experience: '有2年前端开发经验', skills: ['JavaScript', 'Vue', 'React'], matchRate: 92, status: 'pending', statusText: '待处理' },
-        { id: 992, name: '李四', major: '软件工程', education: '硕士', experience: '有1年后端开发经验', skills: ['Java', 'Spring Boot', 'MySQL'], matchRate: 88, status: 'interview', statusText: '面试中' }
-      ];
-    }
+    goBack() { uni.navigateBack() }
   }
 }
 </script>

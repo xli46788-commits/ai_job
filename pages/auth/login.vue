@@ -9,7 +9,6 @@
 
     <view class="content-layer">
       <view class="brand-floating fade-in-up delay-1">
-        <view class="badge">AI-Powered Platform</view>
         <text class="app-name">AI职引未来</text>
         <text class="slogan">重塑简历基因，精准链接触达</text>
         

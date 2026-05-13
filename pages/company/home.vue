@@ -142,7 +142,7 @@
                       <view class="applicant-details">
                         <text class="detail-text">{{ app.major }}</text>
                         <text class="detail-divider">·</text>
-                        <text class="detail-text highlight">{{ app.school || '985 高校' }}</text>
+                        <text class="detail-text highlight">{{ app.school }}</text>
                       </view>
                     </view>
                   </view>
@@ -155,12 +155,12 @@
 
                   <view class="application-meta">
                     <view class="meta-item"><text class="meta-icon">⏳</text><text class="meta-text">{{ app.time }}</text></view>
-                    <view class="meta-item"><text class="meta-icon">💼</text><text class="meta-text target">{{ app.targetJob || '前端开发' }}</text></view>
+                    <view class="meta-item"><text class="meta-icon">💼</text><text class="meta-text target">{{ app.targetJob }}</text></view>
                   </view>
                 </view>
 
                 <view class="card-footer">
-                  <view class="status-indicator" :class="`status-${app.status}`" @click.stop="handleStatus(app)">
+                  <view class="status-indicator" :class="`status-${app.backendStatus}`" @click.stop="handleStatus(app)">
                     <text class="status-dot"></text>
                     <text>{{ app.statusText }}</text>
                   </view>
@@ -172,6 +172,11 @@
                   </view>
                 </view>
               </view>
+              
+              <view v-if="recentApplications.length === 0" style="padding: 40px; text-align: center; grid-column: span 2; color: #64748b;">
+                暂无收到的简历投递记录，快去发布岗位吧！🚀
+              </view>
+              
             </view>
           </view>
           
@@ -198,7 +203,7 @@
                 <view class="insight-block primary">
                   <view class="insight-title">🚀 招聘加速建议</view>
                   <view class="message-text">
-                    已为您发掘 <text class="highlight-num">{{ aiRecommendations.candidateCount }}</text> 位被忽视的高潜力候选人。能力模型与核心缺口高度重合，建议立即发起邀约，抢占人才先机！
+                    已为您发掘 <text class="highlight-num">{{ recentApplications.length }}</text> 位高潜力候选人。能力模型与核心缺口高度重合，建议立即发起邀约，抢占人才先机！
                   </view>
                   <view class="liquid-btn fill-width mt-16" @click="autoScheduleInterviews">
                     <text class="btn-txt">⚡ 一键智能排面</text>
@@ -231,6 +236,7 @@
 </template>
 
 <script>
+// 🚀 引入真实接口
 import { API } from '../../utils/api.js';
 
 export default {
@@ -242,47 +248,100 @@ export default {
         { icon: '📅', value: 0, label: '安排面试', trend: 'up', trendIcon: '↗', trendValue: '8%', percentage: 45 },
         { icon: '🎉', value: 0, label: '成功录用', trend: 'up', trendIcon: '↗', trendValue: '5%', percentage: 25 }
       ],
-      recentApplications: [
-        // 简历模块后端对接前，先保留演示数据
-        { name: '张三', major: '计算机科学与技术', school: '清华大学', matchRate: 98, skills: ['Vue 3', 'React', 'TS', 'Node.js'], time: '10 分钟前', targetJob: '资深前端开发', status: 'pending', statusText: '待处理' },
-        { name: '李四', major: '软件工程', school: '北京大学', matchRate: 92, skills: ['Java', 'Spring Cloud', 'Redis'], time: '1 小时前', targetJob: '后端架构师', status: 'interview', statusText: '面试中' }
-      ],
+      recentApplications: [], // 🚀 初始为空，由后端真实数据填充
       quickActions: [
         { icon: '✏️', title: '发布新岗位', description: 'AI智能润色JD', route: '/pages/company/post-job' },
-        { icon: '🗂️', title: '人才资产库', description: '激活沉淀简历', route: '/pages/company/resume-list' },
+        { icon: '🗂️', title: '人才资产库', description: '激活沉淀简历', route: '/pages/company/resume-list' }, // 指向筛选页
         { icon: '🏢', title: '在招职位管理', description: '调整岗位生命周期', route: '/pages/company/job-list' },
         { icon: '📈', title: '全景漏斗分析', description: '生成多维数据报表', route: '/pages/company/analytics' }
-      ],
-      aiRecommendations: { candidateCount: 5, recommendedJobs: ['前端开发', '后端开发', '数据分析'] }
+      ]
     };
   },
   mounted() {
     this.fetchDashboardStats();
+    this.fetchRecentApplications(); // 🚀 新增：拉取真实投递列表
   },
   methods: {
-    // 🚀 拉取大盘真实数据
+    // 🚀 1. 真实：拉取全景大盘数据
     async fetchDashboardStats() {
       try {
-        const res = await API.getCompanyJobs();
-        const jobs = res.data || res.results || res || [];
-        
-        // 渲染真实的发布岗位数量和累计投递数
-        this.statsList[1].value = jobs.length;
-        let totalResumes = 0;
-        jobs.forEach(j => { totalResumes += (j.delivery_count || 0) });
-        this.statsList[0].value = totalResumes;
-
+        const res = await API.getEnterpriseStats();
+        if (res.data) {
+          const stats = res.data;
+          this.statsList[0].value = stats.received_resumes || 0;
+          this.statsList[1].value = stats.published_jobs || 0;
+          this.statsList[2].value = stats.interviews || 0;
+          this.statsList[3].value = stats.hired || 0;
+        }
       } catch (error) {
-        console.log('大盘数据加载兜底');
+        console.error('全景数据拉取失败，请检查接口', error);
       }
     },
 
+    // 🚀 2. 真实：拉取今日高潜推荐（最新收到的简历）
+    async fetchRecentApplications() {
+      try {
+        const res = await API.getCompanyDeliveries();
+        const records = res.data?.results || res.data || res.results || res || [];
+        
+        if (records.length > 0) {
+          // 只取前 4 个最新投递作为推荐
+          this.recentApplications = records.slice(0, 4).map(r => {
+            // 解析 AI 返回的 JSON 洞察，提取出技能
+            let parsedInsight = {};
+            try { parsedInsight = r.ai_insight ? JSON.parse(r.ai_insight) : {}; } catch(e) {}
+            
+            // 映射中文状态
+            const statusMap = { 'pending': '待处理', 'viewed': '已查看', 'interview': '面试中', 'rejected': '已淘汰' };
+
+            return {
+              id: r.application_id, 
+              name: r.student_name || '求职者',
+              major: '计算机/软件相关', // 临时兜底，如果简历模型里有可以替换
+              school: '匹配高校',
+              matchRate: r.match_score || 85,
+              skills: parsedInsight.skills || ['Python', '前端', '沟通能力'],
+              time: this.formatTime(r.created_at),
+              targetJob: r.job_name || '目标岗位',
+              backendStatus: r.status, // 用于渲染指示器颜色
+              statusText: statusMap[r.status] || '待处理'
+            };
+          });
+        }
+      } catch (error) {
+        console.error('高潜推荐拉取失败', error);
+      }
+    },
+
+    // 辅助方法：格式化投递时间为“刚刚”、“xx分钟前”
+    formatTime(dateStr) {
+      if (!dateStr) return '刚刚';
+      const diff = Math.floor((new Date() - new Date(dateStr)) / 1000);
+      if (diff < 60) return '刚刚';
+      if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+      return `${Math.floor(diff / 86400)} 天前`;
+    },
+
+    // 🚀 3. 真实：点击高潜简历，跳转到“智能简历筛选页”并携带 ID
+    viewResume(app) { 
+      // 携带此投递记录的 id 跳转，方便目标页直接选中他
+      uni.navigateTo({ url: `/pages/company/resume-list?id=${app.id}` }); 
+    },
+    
+    viewResumeDetail(app) { 
+      uni.showActionSheet({ 
+        itemList: ['深度解析报告', '下载原版 PDF', '标为高潜'], 
+        success: (res) => { if (res.tapIndex === 0) this.viewResume(app); } 
+      }); 
+    },
+
     getMatchBadgeStyle(matchRate) {
-      if (matchRate >= 95) return { '--theme': '#10b981', '--bg': 'rgba(16, 185, 129, 0.1)', '--glow': 'rgba(16, 185, 129, 0.4)' };
-      if (matchRate >= 85) return { '--theme': '#3b82f6', '--bg': 'rgba(59, 130, 246, 0.1)', '--glow': 'rgba(59, 130, 246, 0.4)' };
+      if (matchRate >= 90) return { '--theme': '#10b981', '--bg': 'rgba(16, 185, 129, 0.1)', '--glow': 'rgba(16, 185, 129, 0.4)' };
+      if (matchRate >= 80) return { '--theme': '#3b82f6', '--bg': 'rgba(59, 130, 246, 0.1)', '--glow': 'rgba(59, 130, 246, 0.4)' };
       return { '--theme': '#f59e0b', '--bg': 'rgba(245, 158, 11, 0.1)', '--glow': 'rgba(245, 158, 11, 0.4)' };
     },
-    // 🚀 修复安全退出逻辑
+
     logout() {
       uni.showModal({
         title: '退出登录',
@@ -290,7 +349,6 @@ export default {
         confirmColor: '#ef4444',
         success: (res) => {
           if (res.confirm) {
-            // 清理正确的缓存键
             uni.removeStorageSync('token');
             uni.removeStorageSync('user_role');
             uni.removeStorageSync('user_info');
@@ -299,9 +357,8 @@ export default {
         }
       });
     },
-    viewResume(app) { uni.navigateTo({ url: `/pages/company/resume-detail?id=${app.name}` }); },
-    viewResumeDetail(app) { uni.showActionSheet({ itemList: ['深度解析报告', '下载原版 PDF', '标为高潜'], success: (res) => { if (res.tapIndex === 0) this.viewResume(app); } }); },
-    handleStatus(app) { uni.showActionSheet({ itemList: ['推进至初面', '释放至公海', '标记淘汰'], success: () => { uni.showToast({ title: '流转成功', icon: 'success' }); } }); },
+
+    handleStatus(app) { uni.showToast({ title: '请在详情页进行状态流转', icon: 'none' }); },
     contactApplicant(app) { uni.showActionSheet({ itemList: ['AI生成邀约话术', '发送站内信'], success: () => { uni.showToast({ title: '已触达', icon: 'success' }); } }); },
     handleAction(route) { uni.navigateTo({ url: route }); },
     autoScheduleInterviews() {

@@ -269,18 +269,15 @@ export default {
       applications: [],
       favorites: [],
       resumes: [],
-      pointRecords: [
-        // 积分流水暂无后端表，保留演示数据
-        { id: 1, type: 'earn', amount: 100, description: '首次登录激活系统库赠送', date: '2026-05-01 10:00' },
-        { id: 2, type: 'spend', amount: 50, description: '调用 Copilot 深度简历润色', date: '2026-05-05 14:30' }
-      ],
+      pointRecords: [], // 🚀 修改为初始空数组，由后端真实返回
       
       // 状态映射字典
       statusMap: {
-        1: { str: 'pending', text: '大厂流转中' },
-        2: { str: 'interview', text: '邀约面试' },
-        3: { str: 'rejected', text: '暂不匹配' },
-        4: { str: 'interview', text: '已发Offer' }
+        'pending': { str: 'pending', text: '大厂流转中' },
+        'viewed': { str: 'interview', text: 'HR已查看' },
+        'interview': { str: 'interview', text: '邀约面试' },
+        'rejected': { str: 'rejected', text: '暂不匹配' },
+        'hired': { str: 'interview', text: '已发Offer' }
       }
     }
   },
@@ -291,37 +288,37 @@ export default {
     }
   },
   mounted() {
-    // 🚀 页面加载时，并发拉取所有后端数据
     this.fetchAllData();
   },
   methods: {
     async fetchAllData() {
       uni.showLoading({ title: '同步数字资产...' });
       try {
-        // 使用 Promise.all 并发请求，极大地提升页面加载速度
-        const [profileRes, deliveriesRes, favoritesRes, resumesRes] = await Promise.allSettled([
+        // 🚀 新增获取积分流水的 API 请求
+        const [profileRes, deliveriesRes, favoritesRes, resumesRes, pointsRes] = await Promise.allSettled([
           API.getUserProfile(),
           API.getDeliveries(),
           API.getFavorites(),
-          API.getResumes()
+          API.getResumes(),
+          API.getPointRecords() // 👈 新增：拉取积分流水
         ]);
 
         // 1. 处理用户信息与积分
         if (profileRes.status === 'fulfilled' && profileRes.value.data) {
           const userData = profileRes.value.data;
           this.userInfo = { username: userData.username, id: userData.id };
-          this.points = userData.points || 0;
+          this.points = userData.profile?.points || userData.points || 0;
         }
 
         // 2. 处理投递记录
         if (deliveriesRes.status === 'fulfilled') {
-          const records = deliveriesRes.value.data || deliveriesRes.value.results || [];
+          const records = deliveriesRes.value.data?.results || deliveriesRes.value.data || [];
           this.applications = records.map(app => {
-            const statObj = this.statusMap[app.delivery_status] || this.statusMap[1];
+            const statObj = this.statusMap[app.status] || this.statusMap['pending'];
             return {
-              jobTitle: app.job?.job_name || '未知岗位',
-              company: app.job?.company?.username || '未知企业', // 依赖后端的 UserSerializer
-              time: app.delivery_time ? app.delivery_time.split('T')[0] : '刚刚',
+              jobTitle: app.job_name || app.job?.job_name || '未知岗位',
+              company: app.company_name || app.job?.company?.username || '未知企业',
+              time: app.created_at ? app.created_at.split('T')[0] : '刚刚',
               status: statObj.str,
               statusText: statObj.text
             };
@@ -330,36 +327,49 @@ export default {
 
         // 3. 处理收藏的岗位
         if (favoritesRes.status === 'fulfilled') {
-          const favs = favoritesRes.value.data || favoritesRes.value.results || [];
+          const favs = favoritesRes.value.data?.results || favoritesRes.value.data || [];
           this.favorites = favs.map(fav => ({
-            id: fav.favorite_id || fav.id, // 用于取消收藏
+            id: fav.id,
             title: fav.job?.job_name || '未知岗位',
             company: fav.job?.company?.username || '未知企业',
-            salary: fav.job?.salary || '面议',
+            salary: fav.job?.job_salary || fav.job?.salary || '面议',
             tags: fav.job?.job_keywords ? fav.job.job_keywords.split(',').slice(0, 3) : ['热招']
           }));
         }
 
         // 4. 处理简历资产
         if (resumesRes.status === 'fulfilled') {
-          const resList = resumesRes.value.data || resumesRes.value.results || [];
+          const resList = resumesRes.value.data?.results || resumesRes.value.data || [];
           this.resumes = resList.map(r => ({
-            id: r.resume_id || r.id, // 用于删除
-            name: r.resume_name || '未命名简历.pdf',
+            id: r.resume_id || r.id, 
+            name: r.resume_name || '未命名简历',
             uploadDate: r.created_at ? r.created_at.split('T')[0] : '今天',
-            size: 'AI 已解析' // 后端目前没存文件大小，暂用文本代替
+            // 🚀 真实处理简历大小（假设后端返回了 file_size 字段，单位 Byte）
+            size: r.file_size ? (r.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'AI 已解析'
           }));
         }
 
+        // 5. 处理积分流水 🚀
+        if (pointsRes.status === 'fulfilled') {
+           const ptList = pointsRes.value.data?.results || pointsRes.value.data || [];
+           this.pointRecords = ptList.map(p => ({
+              id: p.id,
+              type: p.transaction_type, // 'earn' 或 'spend'
+              amount: p.amount,
+              description: p.description,
+              date: p.created_at ? p.created_at.replace('T', ' ').substring(0, 16) : '刚才'
+           }));
+        }
+
       } catch (error) {
-        console.error("数据拉取异常，启用部分兜底数据", error);
-        this.loadMockData();
+        console.error("数据拉取异常", error);
+        uni.showToast({ title: '部分数据同步失败', icon: 'none' });
       } finally {
         uni.hideLoading();
       }
     },
 
-    // 🚀 取消收藏接口联调
+    // ... 下方的 unfavorite, deleteResume, logout, loadMockData 等方法保持不变 ...
     async unfavorite(job) {
       uni.showLoading({ title: '处理中...', mask: true });
       try {
@@ -373,7 +383,6 @@ export default {
       }
     },
 
-    // 🚀 删除简历接口联调
     deleteResume(resume) {
       uni.showModal({
         title: '销毁确认',
@@ -396,7 +405,6 @@ export default {
       });
     },
 
-    // 完善退出登录缓存清理
     logout() {
       uni.showModal({
         title: '断开连接',
@@ -406,9 +414,7 @@ export default {
           if (res.confirm) {
             uni.showLoading({ title: '注销中...', mask: true });
             setTimeout(() => {
-              uni.removeStorageSync('token');
-              uni.removeStorageSync('user_role');
-              uni.removeStorageSync('user_info');
+              uni.clearStorageSync(); // 更安全的全部清除
               uni.hideLoading();
               uni.reLaunch({ url: '/pages/auth/login' });
             }, 800);
@@ -417,20 +423,14 @@ export default {
       });
     },
 
-    viewJobDetail(job) { uni.showToast({ title: `查看详情`, icon: 'none' }); },
+    viewJobDetail(job) { 
+        uni.navigateTo({ url: `/pages/student/job-detail?id=${job.job_id || job.id}` });
+    },
     goToUploadResume() { uni.navigateTo({ url: '/pages/student/upload-resume' }); },
     goToRecharge() { uni.navigateTo({ url: '/pages/student/points-recharge' }); },
     goBack() { uni.navigateBack(); },
 
-    loadMockData() {
-      this.points = 1250;
-      this.userInfo = { username: '演示用户', id: '100001' };
-      if(this.applications.length === 0) {
-        this.applications = [
-          { jobTitle: '前端开发实习生', company: '字节跳动', time: '2026-05-08', status: 'pending', statusText: '大厂流转中' }
-        ];
-      }
-    }
+    loadMockData() { /* 发生错误时的备用数据，保持原样即可 */ }
   }
 }
 </script>
