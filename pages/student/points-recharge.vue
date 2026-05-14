@@ -1,6 +1,5 @@
 <template>
   <view class="student-universe-web">
-    <!-- 极光背景层 -->
     <view class="aurora-wrapper">
       <view class="orb orb-1"></view>
       <view class="orb orb-2"></view>
@@ -9,9 +8,7 @@
       <view class="vignette-overlay"></view>
     </view>
     
-    <!-- 主容器 -->
     <view class="workspace-layout">
-      <!-- 顶部导航 -->
       <view class="glass-header fade-in-down">
         <view class="header-left">
           <view class="icon-btn" @click="goBack" title="返回个人中心">
@@ -26,15 +23,12 @@
         </view>
       </view>
       
-      <!-- 双舱工作区 -->
       <view class="workspace-body">
         
-        <!-- ==================== 左侧：面额选择舱 ==================== -->
         <view class="left-selection-panel fade-in-up delay-1">
           <scroll-view class="selection-scroll custom-scrollbar" scroll-y>
             <view class="selection-content-inner">
               
-              <!-- 充值套餐 -->
               <view class="packages-section">
                 <view class="section-header">
                   <view class="header-icon-box theme-primary">
@@ -43,7 +37,7 @@
                   <text class="section-title">选择积分套餐</text>
                 </view>
                 
-                <view class="packages-grid">
+                <view class="packages-grid" v-if="rechargeOptions.length > 0">
                   <view 
                     v-for="option in rechargeOptions" 
                     :key="option.id"
@@ -51,10 +45,8 @@
                     :class="{ active: selectedOption === option.id && !customAmount }"
                     @click="selectOption(option.id)"
                   >
-                    <!-- 发光动效层 -->
                     <view class="package-glow" v-if="selectedOption === option.id && !customAmount"></view>
                     
-                    <!-- 折扣角标 -->
                     <view v-if="option.discount" class="discount-badge">
                       <text>{{ option.discount }}折特惠</text>
                     </view>
@@ -71,9 +63,13 @@
                     </view>
                   </view>
                 </view>
+
+                <view class="empty-state mini" v-else>
+                  <text class="empty-icon">📭</text>
+                  <text class="empty-text">暂无可用的积分套餐，请使用下方自定义金额</text>
+                </view>
               </view>
               
-              <!-- 自定义金额 -->
               <view class="custom-section mt-40">
                 <view class="section-header">
                   <view class="header-icon-box theme-secondary">
@@ -111,18 +107,14 @@
           </scroll-view>
         </view>
 
-        <!-- ==================== 右侧：收银与权益舱 (完美分离吸底版) ==================== -->
         <view class="right-checkout-panel fade-in-left delay-2">
           <view class="ultra-glass-card checkout-card h-full">
             
-            <!-- 新增的 Flex 垂直布局容器 -->
             <view class="checkout-container">
               
-              <!-- 上半部分：可独立滚动的区域 -->
               <scroll-view class="checkout-scroll custom-scrollbar" scroll-y>
                 <view class="checkout-scroll-content">
                   
-                  <!-- 支付方式选择 -->
                   <view class="payment-section">
                     <text class="panel-sm-title">支付方式</text>
                     <view class="payment-list">
@@ -144,7 +136,6 @@
                   
                   <view class="divider mt-24 mb-24"></view>
 
-                  <!-- 充值权益展示 -->
                   <view class="benefits-section">
                     <text class="panel-sm-title">尊享权益保障</text>
                     <view class="benefits-list">
@@ -175,7 +166,6 @@
                 </view>
               </scroll-view>
 
-              <!-- 下半部分：永远吸底的结算栏 -->
               <view class="checkout-footer-fixed">
                 <view class="total-summary">
                   <text class="summary-label">总计需支付</text>
@@ -210,15 +200,15 @@ export default {
   data() {
     return {
       currentPoints: 0, // 真实账户积分
-      selectedOption: 2, 
+      selectedOption: null, // 🚀 移除硬编码的 2，由后端数据动态决定
       selectedPayment: 1, 
       customAmount: '',
       customPoints: 0,
       
-      // 🚀 1. 初始设为空数组，等待后端返回真实套餐
+      // 🚀 初始设为空数组，等待后端返回真实套餐
       rechargeOptions: [], 
       
-      // 支付方式通常与前端接入的 SDK（微信/支付宝）强绑定，写死是正常的
+      // 支付方式通常与前端接入的第三方 SDK（微信/支付宝等）强绑定，写在前端是标准的工程实践
       paymentMethods: [
         { id: 1, name: '微信支付', icon: '💬', themeClass: 'wechat' }, 
         { id: 2, name: '支付宝', icon: '💳', themeClass: 'alipay' },
@@ -228,8 +218,13 @@ export default {
   },
   computed: {
     totalPrice() {
+      // 优先计算自定义金额
       if (this.customAmount > 0) {
         return parseFloat(this.customAmount).toFixed(2);
+      }
+      // 如果没有选择任何套餐，返回 0
+      if (!this.selectedOption || this.rechargeOptions.length === 0) {
+        return '0.00';
       }
       const option = this.rechargeOptions.find(opt => opt.id === this.selectedOption);
       return option ? option.price.toFixed(2) : '0.00';
@@ -241,7 +236,7 @@ export default {
     this.fetchRechargePackages();
   },
   methods: {
-    // 🚀 2. 真实拉取积分（去除假数据）
+    // 真实拉取积分
     async fetchUserPoints() {
       try {
         const res = await API.getUserProfile();
@@ -249,34 +244,26 @@ export default {
         this.currentPoints = userData.profile?.points || userData.points || 0;
       } catch (error) {
         console.error("拉取积分失败:", error);
-        this.currentPoints = 0; // 真实环境报错时应显示 0
+        this.currentPoints = 0; // 真实环境报错时严格显示 0
       }
     },
 
-    // 🚀 3. 新增：从后端拉取充值套餐列表
+    // 真实拉取充值套餐列表
     async fetchRechargePackages() {
       try {
         const res = await API.getRechargeOptions();
         const packages = res.data?.results || res.data || [];
         if (packages.length > 0) {
           this.rechargeOptions = packages;
+          // 🚀 动态默认选中第一个套餐
+          this.selectedOption = packages[0].id;
         } else {
-          this.loadDefaultPackages();
+          this.rechargeOptions = []; // 拒绝假数据兜底
         }
       } catch (error) {
-        console.error("拉取套餐失败，使用本地默认套餐:", error);
-        this.loadDefaultPackages();
+        console.error("拉取套餐失败:", error);
+        this.rechargeOptions = []; // 网络异常时保持为空状态
       }
-    },
-
-    // 兜底本地套餐（如果后端没写这个接口，保证页面不白屏）
-    loadDefaultPackages() {
-      this.rechargeOptions = [
-        { id: 1, points: 500, price: 50, discount: null },
-        { id: 2, points: 1200, price: 100, discount: 8.3 },
-        { id: 3, points: 2500, price: 200, discount: 8 },
-        { id: 4, points: 6500, price: 500, discount: 7.7 }
-      ];
     },
 
     selectOption(id) {
@@ -289,7 +276,7 @@ export default {
     handleCustomInput(e) {
       let val = e.detail.value;
       if (val > 0) {
-        // 自定义充值逻辑：1元 = 10积分，加赠 10%
+        // 自定义充值逻辑：假设 1元 = 10积分，加赠 10%
         this.customPoints = Math.floor(parseFloat(val) * 10 * 1.1);
         this.selectedOption = null; 
       } else {
@@ -297,14 +284,25 @@ export default {
       }
     },
 
-    // 🚀 4. 修复重大漏洞：充值失败绝不能加积分！
+    // 真实调用充值接口
     confirmRecharge() {
       if (this.totalPrice <= 0) {
         uni.showToast({ title: '请输入有效的充值金额', icon: 'none' });
         return;
       }
-      
-      const pointsToAdd = this.customAmount > 0 ? this.customPoints : this.rechargeOptions.find(opt => opt.id === this.selectedOption).points;
+
+      // 提取要购买的积分数量
+      let pointsToAdd = 0;
+      if (this.customAmount > 0) {
+        pointsToAdd = this.customPoints;
+      } else {
+        const option = this.rechargeOptions.find(opt => opt.id === this.selectedOption);
+        if (!option) {
+          uni.showToast({ title: '请选择积分套餐', icon: 'none' });
+          return;
+        }
+        pointsToAdd = option.points;
+      }
       
       uni.showModal({
         title: '支付确认',
@@ -331,7 +329,7 @@ export default {
               
             } catch (error) {
               uni.hideLoading();
-              // 🚀 真实环境：如果后端拒绝或网络断开，绝对不能加积分！
+              // 如果后端拒绝或网络断开，拦截报错并通知用户
               let errorMsg = '支付中断或失败';
               if (error.data && error.data.detail) errorMsg = error.data.detail;
               uni.showToast({ title: errorMsg, icon: 'none' });
@@ -357,7 +355,7 @@ $success: #10b981;
 $warning: #f59e0b;
 $danger: #ef4444;
 $text-main: #f8fafc;
-$text-secondary: #cbd5e1; /* 修复了文字不显示的报错 */
+$text-secondary: #cbd5e1; 
 $text-muted: #94a3b8;
 
 /* ==================== 极光背景 ==================== */
@@ -453,6 +451,10 @@ $text-muted: #94a3b8;
 .c-points { font-size: 24px; font-weight: 800; color: $success; text-shadow: 0 0 10px rgba($success, 0.4); }
 .c-unit { font-size: 13px; color: $success; opacity: 0.8; }
 
+/* 空状态样式 */
+.empty-state.mini { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 0; opacity: 0.7; }
+.empty-state.mini .empty-icon { font-size: 40px; margin-bottom: 12px; }
+.empty-state.mini .empty-text { font-size: 14px; color: $text-muted; }
 
 /* ==================== 右侧：收银与权益舱 ==================== */
 .right-checkout-panel { width: 420px; flex-shrink: 0; }

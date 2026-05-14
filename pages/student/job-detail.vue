@@ -7,7 +7,7 @@
       <view class="grid-overlay"></view>
       <view class="vignette-overlay"></view>
     </view>
-
+    
     <view class="workspace-layout">
       <view class="glass-header fade-in-down">
         <view class="header-left">
@@ -22,7 +22,7 @@
           </view>
         </view>
       </view>
-
+      
       <view class="workspace-body">
         <scroll-view class="detail-scroll custom-scrollbar" scroll-y>
           <view class="detail-body fade-in-up delay-1">
@@ -30,13 +30,13 @@
             <view class="ultra-glass-card detail-card" v-if="job">
               <view class="job-main-header">
                 <view class="title-row">
-                  <text class="job-name">{{ job.job_name || '未命名岗位' }}</text>
+                  <text class="job-name">{{ job.job_name || '未知岗位' }}</text>
                   <text class="job-salary">{{ job.salary || '面议' }}</text>
                 </view>
                 
                 <view class="company-row" v-if="job.company">
                   <text class="c-icon">🏢</text>
-                  <text class="c-name">{{ job.company.company_name || job.company.username || '知名企业' }}</text>
+                  <text class="c-name">{{ job.company.company_name || job.company.username || '未知企业' }}</text>
                 </view>
 
                 <view class="meta-row">
@@ -92,7 +92,8 @@ export default {
   },
   computed: {
     keywords() {
-      if (!this.job || !this.job.job_keywords) return ['急招'];
+      // 🚀 剔除了写死的 ['急招'] 兜底，没数据就老老实实返回空数组
+      if (!this.job || !this.job.job_keywords) return [];
       return this.job.job_keywords.split(',');
     }
   },
@@ -116,10 +117,10 @@ export default {
       }
     },
     
-applyJob() {
+    applyJob() {
       uni.showModal({
         title: '确认一键投递',
-        content: `确定要使用数字分身向 ${this.job.job_name} 投递简历吗？`,
+        content: `确定要使用数字分身向 ${this.job.job_name || '该岗位'} 投递简历吗？`,
         confirmColor: '#3b82f6',
         success: async (res) => {
           if (res.confirm) {
@@ -165,7 +166,7 @@ applyJob() {
     },
     
     formatDate(dateStr) {
-      if (!dateStr) return '刚刚';
+      if (!dateStr) return '近期发布'; // 🚀 将“刚刚”改为更为严谨的“近期发布”
       const date = new Date(dateStr);
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     },

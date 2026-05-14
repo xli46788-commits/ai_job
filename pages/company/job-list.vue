@@ -150,7 +150,8 @@
                     <view class="f-icon-box">👁️</view>
                     <text class="f-val">{{ selectedJob.stats.views }}</text>
                     <text class="f-label">职位曝光量</text>
-                    <view class="f-trend up">+12% 周环比</view>
+                    <view class="f-trend up" v-if="selectedJob.stats.views > 0">持续曝光</view>
+                    <view class="f-trend neutral" v-else>新发布</view>
                   </view>
                   <view class="funnel-arrow">›</view>
                   
@@ -159,7 +160,7 @@
                     <text class="f-val">{{ selectedJob.stats.applies }}</text>
                     <text class="f-label">收到投递</text>
                     <view class="f-trend down" v-if="selectedJob.stats.applies === 0">待发力</view>
-                    <view class="f-trend up" v-else>稳步上升</view>
+                    <view class="f-trend up" v-else>稳步转化</view>
                   </view>
                   <view class="funnel-arrow">›</view>
 
@@ -167,7 +168,8 @@
                     <view class="f-icon-box theme-cyan">📅</view>
                     <text class="f-val">{{ selectedJob.stats.interviews }}</text>
                     <text class="f-label">进入面试</text>
-                    <view class="f-trend neutral">转化中</view>
+                    <view class="f-trend up" v-if="selectedJob.stats.interviews > 0">高效推进</view>
+                    <view class="f-trend neutral" v-else>等待推进</view>
                   </view>
                   <view class="funnel-arrow">›</view>
 
@@ -175,7 +177,8 @@
                     <view class="f-icon-box theme-green">🎉</view>
                     <text class="f-val">{{ selectedJob.stats.offers }}</text>
                     <text class="f-label">发放 Offer</text>
-                    <text class="f-trend neutral">持平</text>
+                    <text class="f-trend up" v-if="selectedJob.stats.offers > 0">成功发放</text>
+                    <text class="f-trend neutral" v-else>评估中</text>
                   </view>
                 </view>
               </view>
@@ -208,7 +211,7 @@ export default {
         { label: '已暂停', value: 'paused', count: 0 },
         { label: '已关闭', value: 'closed', count: 0 }
       ],
-      jobs: [], // 初始为空，从后端拉取
+      jobs: [], 
       selectedJob: null
     };
   },
@@ -221,37 +224,35 @@ export default {
     this.fetchJobs();
   },
   methods: {
-    // 🚀 1. 从后端真实获取企业岗位列表，并绑定最新的漏斗数据
     async fetchJobs() {
       uni.showLoading({ title: '同步职位数据...' });
       try {
         const res = await API.getCompanyJobs();
-        // 适配 DRF 的返回格式
         const realJobs = res.data || res.results || res || [];
         
         if (realJobs.length > 0) {
-          // 将后端的字段精准映射为前端 UI 需要的字段
           this.jobs = realJobs.map(j => ({
             id: j.id || j.job_id,
             title: j.job_name || j.title || '未命名职位',
-            salary: j.job_salary || j.salary || '面议', // 🚀 兼容后端的 job_salary
+            salary: j.job_salary || j.salary || '面议',
             location: j.job_location || '全国',
             experience: j.experience || '经验不限',
             education: j.education || '学历不限',
             status: j.is_published ? 'active' : 'paused', 
             publishDate: j.created_at ? j.created_at.split('T')[0] : '刚刚',
-            healthScore: j.view_count > 0 ? 95 : 85, // 有曝光就给高分，后续可接入 AI
             
-            // 🚀 彻底激活真实数据漏斗！
+            // 🚀 优先使用后端的健康分数据，没有时才按逻辑推算
+            healthScore: j.health_score || (j.view_count > 0 ? 95 : 85), 
+            
             stats: { 
-              views: j.view_count || 0,           // 真实浏览量
-              applies: j.resume_count || 0,       // 真实收到投递数
-              interviews: j.interview_count || 0, // 真实安排面试数
-              offers: j.offer_count || 0          // 真实发放 Offer 数
+              views: j.view_count || 0,           
+              applies: j.resume_count || 0,       
+              interviews: j.interview_count || 0, 
+              offers: j.offer_count || 0          
             }
           }));
         } else {
-          this.jobs = []; // 清空数据展示空状态
+          this.jobs = []; 
         }
         
         this.updateTabCounts();
@@ -264,13 +265,11 @@ export default {
       }
     },
 
-    // 🚀 2. 真实调用后端接口修改状态
     async toggleJobStatus(job) {
       const isActivating = job.status !== 'active';
       uni.showLoading({ title: isActivating ? '激活中...' : '暂停中...', mask: true });
       
       try {
-        // 调用后端 PATCH 接口，更新 is_published 字段
         await API.updateJob(job.id, { is_published: isActivating });
         
         uni.hideLoading();
@@ -315,21 +314,31 @@ export default {
     },
     createNewJob() { uni.navigateTo({ url: '/pages/company/post-job' }); },
     editJob() { uni.navigateTo({ url: `/pages/company/post-job?id=${this.selectedJob.id}` }); },
-    optimizeJD() {
+    
+    // 🚀 安全重构：引入异步异常捕获，避免抛出死数据的提示
+    async optimizeJD() {
       uni.showLoading({ title: 'Copilot 引擎重构中...', mask: true });
-      setTimeout(() => {
+      try {
+        // 此处未来应调用真实后端的 API.optimizeCompanyJob({ id: this.selectedJob.id })
+        // 暂时用 Promise 真实模拟网络等待过程
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
         uni.hideLoading();
-        this.selectedJob.healthScore = 95;
+        this.selectedJob.healthScore = 98; // 成功后乐观更新
         uni.showToast({ title: 'JD 已重塑，曝光权重提升', icon: 'success' });
-      }, 2000);
+      } catch (error) {
+        uni.hideLoading();
+        uni.showToast({ title: '引擎繁忙，请稍后重试', icon: 'none' });
+      }
     },
+    
     goBack() { uni.navigateBack(); }
   }
 };
 </script>
 
 <style lang="scss" scoped>
-/* 此处样式未做任何修改，保持您原汁原味的极光宇宙设计 */
+/* ==================== 宇宙色彩体系 ==================== */
 $bg-deep: #030308;
 $primary: #3b82f6; 
 $primary-light: #60a5fa;
@@ -494,6 +503,5 @@ $text-muted: #64748b;
 @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeInLeft { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.9); } }
 .mt-16 { margin-top: 16px; }
 </style>

@@ -122,11 +122,11 @@
                 <view class="insight-body">
                   <view class="insight-text">
                     <text class="highlight">💡 核心优势：</text>
-                    {{ selectedResume.insight.advantages || '候选人的技术栈与岗位需求基本吻合。' }}
+                    {{ selectedResume.insight.advantages || '暂未提取到核心优势数据。' }}
                   </view>
                   <view class="insight-text mt-10">
                     <text class="highlight warning">⚠️ 风险提示：</text>
-                    {{ selectedResume.insight.risks || '暂无明显风险。' }}
+                    {{ selectedResume.insight.risks || '暂未提取到相关风险数据。' }}
                   </view>
                 </view>
               </view>
@@ -134,17 +134,20 @@
               <view class="info-grid">
                 <view class="glass-block">
                   <view class="block-title">AI 提取专业技能</view>
-                  <view class="skills-wrapper">
-                    <view v-for="(skill, index) in (selectedResume.insight.skills || ['暂无技能数据'])" :key="index" class="neon-tag active">
+                  <view class="skills-wrapper" v-if="selectedResume.insight.skills && selectedResume.insight.skills.length > 0">
+                    <view v-for="(skill, index) in selectedResume.insight.skills" :key="index" class="neon-tag active">
                       {{ skill }}
                     </view>
+                  </view>
+                  <view class="skills-wrapper" v-else>
+                    <view class="neon-tag ghost">暂未提取到专业技能</view>
                   </view>
                 </view>
                 
                 <view class="glass-block span-2">
                   <view class="block-title">履历与经验摘要</view>
                   <view class="exp-content">
-                    <text class="p-text">{{ selectedResume.insight.experience_summary || 'AI 正在分析其过往经历...' }}</text>
+                    <text class="p-text">{{ selectedResume.insight.experience_summary || '暂未提取到履历与经验摘要数据。' }}</text>
                   </view>
                 </view>
               </view>
@@ -207,6 +210,7 @@ export default {
       showStatusModal: false,
       refreshing: false,
       
+      // 这些是 UI 筛选项配置，不是假数据，正常保留
       sortOptions: ['匹配度从高到低', '匹配度从低到高', '最新投递'],
       statusOptions: ['全部状态', '待处理', '面试中', '不合适'],
       
@@ -214,7 +218,7 @@ export default {
       filteredResumes: [],
       selectedResume: null,
       
-      // 🚀 核心对齐：和 Django 后端 JobApplication 模型的 status 字段完全匹配
+      // 状态映射字典（与后端逻辑一致）
       statusMap: {
         'pending': { str: 'pending', text: '待处理' },
         'viewed': { str: 'interview', text: '已查看' },
@@ -244,7 +248,7 @@ export default {
         const records = res.data?.results || res.data || res.results || res || [];
         
         if (records.length > 0) {
-          // 🚀 真实数据结构映射，解析后端传来的 ai_insight JSON 数据
+          // 真实数据结构映射，解析后端传来的 ai_insight JSON 数据
           this.resumes = records.map(r => {
             const statObj = this.statusMap[r.status] || this.statusMap['pending'];
             
@@ -258,13 +262,14 @@ export default {
 
             return {
               id: r.application_id, 
-              name: r.student_name || '求职者',
-              jobName: r.job_name || '目标岗位',
+              // 🚀 替换为更严谨的占位符
+              name: r.student_name || '未知候选人',
+              jobName: r.job_name || '未知岗位',
               matchRate: r.match_score || 0, 
               status: statObj.str,
               statusText: statObj.text,
-              backendStatus: r.status, // 保存真实的后端状态用于传参
-              insight: parsedInsight   // 解析后的 AI 报告对象
+              backendStatus: r.status, 
+              insight: parsedInsight   
             };
           });
         } else {
@@ -299,6 +304,7 @@ export default {
     sortResumes() {
       if (this.sortIndex === 0) this.filteredResumes.sort((a, b) => b.matchRate - a.matchRate)
       else if (this.sortIndex === 1) this.filteredResumes.sort((a, b) => a.matchRate - b.matchRate)
+      // 注意：'最新投递' 需要后端配合按时间排序，如果只在前端，且未存储时间，则保留原始顺序或依靠后端默认序
     },
     
     filterByStatus() {
@@ -331,7 +337,6 @@ export default {
       uni.showActionSheet({
         itemList: ['标记为：待处理', '标记为：面试中', '标记为：不合适'],
         success: async (res) => {
-          // 🚀 将前端点击的 index 映射给后端支持的枚举值
           const backendStatusStr = ['pending', 'interview', 'rejected'][res.tapIndex]; 
           
           uni.showLoading({ title: '状态流转中...' });
@@ -483,6 +488,7 @@ $text-muted: #64748b;
 .skills-wrapper { display: flex; flex-wrap: wrap; gap: 10px; }
 .neon-tag { padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 500; background: rgba(255,255,255,0.03); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.08); transition: 0.2s; }
 .neon-tag.active { background: rgba($primary, 0.1); color: #bfdbfe; border-color: rgba($primary, 0.3); }
+.neon-tag.ghost { background: transparent; border: 1px dashed rgba(255,255,255,0.2); }
 
 .p-text { font-size: 14px; color: #cbd5e1; line-height: 1.8; }
 

@@ -1,6 +1,5 @@
 <template>
   <view class="student-universe-web admin-mode">
-    <!-- 极光背景层 (Admin专属暗红/深蓝风控主题) -->
     <view class="aurora-wrapper">
       <view class="orb orb-1 admin-orb"></view>
       <view class="orb orb-2 admin-orb"></view>
@@ -9,7 +8,6 @@
     </view>
     
     <view class="workspace-layout">
-      <!-- 顶部全局导航 -->
       <view class="glass-header fade-in-down">
         <view class="header-left">
           <view class="logo-box admin-theme">
@@ -22,7 +20,7 @@
         </view>
         <view class="header-right">
           <view class="status-badge safe">
-            <text class="dot pulse"></text> 当前在线: 1,284
+            <text class="dot pulse"></text> 当前在线: {{ onlineUsers }}
           </view>
           <view class="logout-btn hover-lift" @click="logout">
             <text>退出总控</text>
@@ -30,10 +28,8 @@
         </view>
       </view>
       
-      <!-- 双舱工作区 -->
       <view class="workspace-body">
         
-        <!-- ==================== 左侧：系统侧边栏 ==================== -->
         <view class="left-sidebar-panel fade-in-up delay-1">
           <view class="ultra-glass-card sidebar-card h-full">
             <view class="nav-menu">
@@ -44,7 +40,7 @@
               <view class="menu-item hover-lift" @click="goTo('audit')">
                 <text class="m-icon">🛡️</text>
                 <text class="m-text">内容安全审核</text>
-                <view class="badge danger">12</view>
+                <view class="badge danger" v-if="auditCount > 0">{{ auditCount > 99 ? '99+' : auditCount }}</view>
               </view>
               <view class="menu-item active">
                 <text class="m-icon">👥</text>
@@ -58,11 +54,9 @@
           </view>
         </view>
 
-        <!-- ==================== 右侧：用户数据栅格舱 ==================== -->
         <view class="right-workspace-panel fade-in-left delay-2">
           <view class="ultra-glass-card users-container h-full">
             
-            <!-- 顶部控制台：搜索与筛选 -->
             <view class="toolbar-section">
               <view class="tb-left">
                 <view class="search-bar">
@@ -73,7 +67,6 @@
               </view>
               
               <view class="tb-right">
-                <!-- 角色筛选 -->
                 <view class="filter-group">
                   <view 
                     class="filter-chip" 
@@ -94,16 +87,13 @@
                 
                 <view class="divider-y"></view>
                 
-                <!-- 导出按钮 -->
                 <view class="ghost-btn outline micro export-btn" @click="exportData">
                   <text>📥 导出名单</text>
                 </view>
               </view>
             </view>
 
-            <!-- 核心数据表 (Flex Table) -->
             <view class="data-grid-wrapper">
-              <!-- 表头 -->
               <view class="grid-header">
                 <view class="th col-user">用户信息</view>
                 <view class="th col-role">身份归属</view>
@@ -113,36 +103,32 @@
                 <view class="th col-action">管控操作</view>
               </view>
               
-              <!-- 表体区 (可滚动) -->
               <scroll-view class="grid-body custom-scrollbar" scroll-y>
-                <view class="grid-rows">
+                <view class="grid-rows" v-if="filteredUsers.length > 0">
                   
                   <view 
                     v-for="(user, index) in filteredUsers" 
-                    :key="user.id" 
+                    :key="user.id || index" 
                     class="grid-row hover-lift"
                     :class="{ 'banned-row': user.status === 'banned' }"
                   >
-                    <!-- 1. 用户信息 -->
                     <view class="td col-user">
-                      <view class="u-avatar">{{ user.avatar }}</view>
+                      <view class="u-avatar">{{ user.avatar || '👤' }}</view>
                       <view class="u-info">
-                        <text class="u-name">{{ user.name }}</text>
-                        <text class="u-id">UID: {{ user.id }}</text>
+                        <text class="u-name">{{ user.name || '未知用户' }}</text>
+                        <text class="u-id">UID: {{ user.id || '--' }}</text>
                       </view>
                     </view>
 
-                    <!-- 2. 身份归属 -->
                     <view class="td col-role">
                       <view class="role-badge" :class="user.role">
-                        {{ user.role === 'student' ? '🎓 学生用户' : '🏢 企业 HR' }}
+                        {{ user.role === 'student' ? '🎓 学生用户' : (user.role === 'company' ? '🏢 企业 HR' : '🛡️ 管理员') }}
                       </view>
                       <text class="u-org" v-if="user.org">{{ user.org }}</text>
                     </view>
 
-                    <!-- 3. 账号状态 -->
                     <view class="td col-status">
-                      <view class="status-indicator" :class="user.status">
+                      <view class="status-indicator" :class="user.status || 'active'">
                         <text class="s-dot"></text>
                         <text class="s-text">
                           {{ user.status === 'active' ? '正常活跃' : (user.status === 'warned' ? '风险观察' : '永久封禁') }}
@@ -150,27 +136,24 @@
                       </view>
                     </view>
 
-                    <!-- 4. AI 风险健康度 (核心) -->
                     <view class="td col-risk">
                       <view class="risk-meter">
                         <view class="meter-info">
                           <text class="m-label" :class="getRiskClass(user.riskScore)">
                             {{ getRiskText(user.riskScore) }}
                           </text>
-                          <text class="m-val">{{ user.riskScore }}/100</text>
+                          <text class="m-val">{{ user.riskScore || 0 }}/100</text>
                         </view>
                         <view class="meter-bg">
-                          <view class="meter-fill" :class="getRiskClass(user.riskScore)" :style="`width: ${user.riskScore}%`"></view>
+                          <view class="meter-fill" :class="getRiskClass(user.riskScore)" :style="`width: ${user.riskScore || 0}%`"></view>
                         </view>
                       </view>
                     </view>
 
-                    <!-- 5. 注册时间 -->
                     <view class="td col-time">
-                      <text class="time-text">{{ user.regTime }}</text>
+                      <text class="time-text">{{ user.regTime || '--' }}</text>
                     </view>
 
-                    <!-- 6. 操作区 -->
                     <view class="td col-action">
                       <view class="action-btn-group">
                         <text class="a-btn primary" title="查看详情" @click="viewDetail(user)">🔍</text>
@@ -181,26 +164,22 @@
                     </view>
                     
                   </view>
-
-                  <!-- 空状态 -->
-                  <view class="empty-state" v-if="filteredUsers.length === 0">
-                    <text class="e-icon">📭</text>
-                    <text class="e-text">未检索到匹配的用户数据</text>
-                  </view>
-
+                </view>
+                
+                <view class="empty-state" v-else>
+                  <text class="e-icon">📭</text>
+                  <text class="e-text">未检索到匹配的用户数据</text>
                 </view>
               </scroll-view>
             </view>
             
-            <!-- 底部：分页器 -->
             <view class="pagination-section">
               <text class="page-info">共检索到 {{ filteredUsers.length }} 条数据</text>
-              <view class="page-controls">
-                <view class="p-btn disabled">上一页</view>
-                <view class="p-num active">1</view>
-                <view class="p-num">2</view>
-                <view class="p-num">3</view>
-                <view class="p-btn">下一页</view>
+              <view class="page-controls" v-if="totalPages > 0">
+                <view class="p-btn" :class="{ disabled: currentPage === 1 }" @click="prevPage">上一页</view>
+                <view class="p-num active">{{ currentPage }}</view>
+                <text style="color: rgba(255,255,255,0.2); font-size: 12px; margin: 0 4px;" v-if="totalPages > 1">/ {{ totalPages }}</text>
+                <view class="p-btn" :class="{ disabled: currentPage >= totalPages }" @click="nextPage">下一页</view>
               </view>
             </view>
 
@@ -220,7 +199,16 @@ export default {
     return {
       searchQuery: '',
       roleFilter: 'all', 
-      usersList: [] // 初始清空假数据
+      usersList: [], 
+      
+      // 🚀 替换全局占位的假数据变量
+      onlineUsers: '--',
+      auditCount: 0,
+      
+      // 🚀 分页变量
+      currentPage: 1,
+      totalPages: 1,
+      pageSize: 20
     }
   },
   computed: {
@@ -232,8 +220,8 @@ export default {
       if (this.searchQuery.trim() !== '') {
         const query = this.searchQuery.toLowerCase();
         result = result.filter(u => 
-          u.name.toLowerCase().includes(query) || 
-          u.id.toString().toLowerCase().includes(query) ||
+          (u.name && u.name.toLowerCase().includes(query)) || 
+          (u.id && u.id.toString().toLowerCase().includes(query)) ||
           (u.org && u.org.toLowerCase().includes(query))
         );
       }
@@ -241,41 +229,77 @@ export default {
     }
   },
   mounted() {
-    this.fetchUsersData(); // 页面加载拉取全站用户
+    this.fetchSystemStats(); // 拉取顶部指标
+    this.fetchUsersData();   // 页面加载拉取全站用户
   },
   methods: {
-    // 🚀 [新] 从后端获取真实用户列表
+    // 🚀 [新] 获取系统全局指标 (在线人数, 审核数)
+    async fetchSystemStats() {
+      try {
+        const res = await API.getSystemAnalytics();
+        if (res.data) {
+           this.onlineUsers = res.data.online_users || '--';
+           this.auditCount = res.data.pending_audits || 0;
+        }
+      } catch (error) {
+        console.error('获取系统指标失败:', error);
+      }
+    },
+
+    // 🚀 [改] 从后端获取真实用户列表，加入防空处理
     async fetchUsersData() {
       uni.showLoading({ title: '同步用户数据...' });
       try {
         const res = await API.getAdminUsers();
-        this.usersList = res.data || [];
+        // 适配不同的 Django 响应格式
+        const records = res.data?.results || res.data || res.results || res || [];
+        this.usersList = records;
+        
+        // 更新总页数 (此处简化为纯前端分页演示，真实场景应使用后端的 count)
+        this.totalPages = Math.ceil(this.usersList.length / this.pageSize) || 1;
       } catch (error) {
         console.error('获取用户列表失败:', error);
+        uni.showToast({ title: '拉取数据异常', icon: 'none' });
       } finally {
         uni.hideLoading();
       }
     },
 
+    // 分页操作
+    prevPage() {
+      if (this.currentPage > 1) {
+        this.currentPage--;
+        // 真实场景可在此处发起新的一页的 API 请求
+      }
+    },
+    nextPage() {
+      if (this.currentPage < this.totalPages) {
+        this.currentPage++;
+        // 真实场景可在此处发起新的一页的 API 请求
+      }
+    },
+
     getRiskClass(score) {
+      if (!score) return 'safe';
       if (score >= 80) return 'danger';
       if (score >= 50) return 'warning';
       return 'safe';
     },
     getRiskText(score) {
+      if (!score) return '健康';
       if (score >= 80) return '高危异常';
       if (score >= 50) return '疑似风险';
       return '健康';
     },
     viewDetail(user) {
-      uni.showToast({ title: `查看 ${user.name} 详情画像`, icon: 'none' });
+      uni.showToast({ title: `查看 ${user.name || '该用户'} 详情画像`, icon: 'none' });
     },
 
-    // 🚀 [改] 对接真实下发警告接口
+    // 🚀 对接真实下发警告接口
     warnUser(user) {
       uni.showModal({
         title: '下发警告',
-        content: `确认向 ${user.name} 下发系统警告信吗？`,
+        content: `确认向 ${user.name || '该用户'} 下发系统警告信吗？`,
         confirmColor: '#f59e0b',
         success: async (res) => {
           if (res.confirm) {
@@ -283,20 +307,23 @@ export default {
             try {
               await API.handleUserStatus({ id: user.id, status: 'warned' });
               user.status = 'warned';
-              user.riskScore = Math.max(user.riskScore, 60);
+              user.riskScore = Math.max(user.riskScore || 0, 60);
               uni.hideLoading();
               uni.showToast({ title: '已下发警告', icon: 'success' });
-            } catch (error) { uni.hideLoading(); }
+            } catch (error) { 
+              uni.hideLoading(); 
+              uni.showToast({ title: '操作失败', icon: 'none' });
+            }
           }
         }
       });
     },
 
-    // 🚀 [改] 对接真实封禁接口
+    // 🚀 对接真实封禁接口
     banUser(user) {
       uni.showModal({
         title: '最高级别封控',
-        content: `确定要永久封禁用户 ${user.name} (UID: ${user.id}) 吗？`,
+        content: `确定要永久封禁用户 ${user.name || '未知'} (UID: ${user.id || '--'}) 吗？`,
         confirmColor: '#ef4444',
         success: async (res) => {
           if (res.confirm) {
@@ -307,17 +334,20 @@ export default {
               user.riskScore = 100;
               uni.hideLoading();
               uni.showToast({ title: '账号已永久封禁', icon: 'success' });
-            } catch (error) { uni.hideLoading(); }
+            } catch (error) { 
+              uni.hideLoading(); 
+              uni.showToast({ title: '操作失败', icon: 'none' });
+            }
           }
         }
       });
     },
 
-    // 🚀 [改] 对接真实解封接口
+    // 🚀 对接真实解封接口
     unbanUser(user) {
       uni.showModal({
         title: '解除封禁',
-        content: `确认解封 ${user.name} 吗？`,
+        content: `确认解封 ${user.name || '该用户'} 吗？`,
         confirmColor: '#10b981',
         success: async (res) => {
           if (res.confirm) {
@@ -328,7 +358,10 @@ export default {
               user.riskScore = 20; 
               uni.hideLoading();
               uni.showToast({ title: '账号已解封', icon: 'success' });
-            } catch (error) { uni.hideLoading(); }
+            } catch (error) { 
+              uni.hideLoading();
+              uni.showToast({ title: '操作失败', icon: 'none' });
+            }
           }
         }
       });
@@ -374,7 +407,7 @@ $bg-deep: #020205;
 $primary: #3b82f6;
 $primary-light: #60a5fa;   
 $secondary: #8b5cf6;
-$secondary-light: #a78bfa; /* 👈 补回缺失的紫色亮阶变量 */
+$secondary-light: #a78bfa;
 $accent: #06b6d4;
 $success: #10b981;
 $warning: #f59e0b;
@@ -435,7 +468,7 @@ $text-muted: #94a3b8;
 .right-workspace-panel { flex: 1; min-width: 0; }
 .users-container { display: flex; flex-direction: column; overflow: hidden; padding: 24px; }
 
-/* 顶部工具栏 */
+/* 顶部控制台：搜索与筛选 */
 .toolbar-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .tb-left { flex: 1; max-width: 400px; }
 .search-bar { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 8px 16px; border-radius: 12px; transition: 0.3s; }
@@ -491,6 +524,7 @@ $text-muted: #94a3b8;
 .role-badge { display: inline-flex; align-self: flex-start; font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 600; margin-bottom: 4px; }
 .role-badge.student { background: rgba($primary, 0.15); color: $primary-light; border: 1px solid rgba($primary, 0.3); }
 .role-badge.company { background: rgba($secondary, 0.15); color: $secondary-light; border: 1px solid rgba($secondary, 0.3); }
+.role-badge.admin { background: rgba($accent, 0.15); color: $accent; border: 1px solid rgba($accent, 0.3); }
 .u-org { font-size: 12px; color: $text-muted; }
 
 /* 单元格内容：3. 账号状态 */

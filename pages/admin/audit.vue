@@ -1,6 +1,5 @@
 <template>
   <view class="student-universe-web admin-mode">
-    <!-- 极光背景层 (深邃暗红/深蓝交织，凸显风控警示感) -->
     <view class="aurora-wrapper">
       <view class="orb orb-1 admin-orb"></view>
       <view class="orb orb-2 admin-orb"></view>
@@ -9,7 +8,6 @@
     </view>
     
     <view class="workspace-layout">
-      <!-- 顶部全局导航 -->
       <view class="glass-header fade-in-down">
         <view class="header-left">
           <view class="logo-box admin-theme">
@@ -22,7 +20,7 @@
         </view>
         <view class="header-right">
           <view class="status-badge alert">
-            <text class="dot pulse"></text> 风控拦截中：12 条高危待办
+            <text class="dot pulse"></text> 运行中 · 在线: {{ onlineUsers }}
           </view>
           <view class="logout-btn hover-lift" @click="logout">
             <text>退出总控</text>
@@ -30,10 +28,8 @@
         </view>
       </view>
       
-      <!-- 双舱工作区 -->
       <view class="workspace-body">
         
-        <!-- ==================== 外层左侧：系统侧边栏 ==================== -->
         <view class="left-sidebar-panel fade-in-up delay-1">
           <view class="ultra-glass-card sidebar-card h-full">
             <view class="nav-menu">
@@ -44,7 +40,7 @@
               <view class="menu-item active">
                 <text class="m-icon">🛡️</text>
                 <text class="m-text">内容安全审核</text>
-                <view class="badge danger">12</view>
+                <view class="badge danger" v-if="auditCount > 0">{{ auditCount > 99 ? '99+' : auditCount }}</view>
               </view>
               <view class="menu-item hover-lift" @click="goTo('users')">
                 <text class="m-icon">👥</text>
@@ -58,47 +54,43 @@
           </view>
         </view>
 
-        <!-- ==================== 外层右侧：审核工作台 ==================== -->
         <view class="right-workspace-panel fade-in-left delay-2">
           
           <view class="ultra-glass-card audit-container h-full">
             
-            <!-- 顶部类型切换标签 -->
             <view class="audit-tabs">
               <view 
                 class="tab-item" 
                 :class="{ active: activeTab === 'post' }"
                 @click="activeTab = 'post'"
               >
-                社区动态 (8)
+                社区动态 ({{ tabCounts.post }})
               </view>
               <view 
                 class="tab-item" 
                 :class="{ active: activeTab === 'jd' }"
                 @click="activeTab = 'jd'"
               >
-                企业职位 (4)
+                企业职位 ({{ tabCounts.jd }})
               </view>
               <view 
                 class="tab-item" 
                 :class="{ active: activeTab === 'resume' }"
                 @click="activeTab = 'resume'"
               >
-                在线简历 (0)
+                在线简历 ({{ tabCounts.resume }})
               </view>
             </view>
 
-            <!-- 内层分屏布局 -->
             <view class="audit-split-view">
               
-              <!-- 内层左侧：任务队列舱 -->
               <view class="queue-panel">
                 <view class="queue-header">
                   <text class="q-title">待处理队列</text>
                   <view class="filter-icon">⬇️ 风险等级降序</view>
                 </view>
                 <scroll-view class="queue-scroll custom-scrollbar" scroll-y>
-                  <view class="queue-list">
+                  <view class="queue-list" v-if="currentQueue.length > 0">
                     <view 
                       v-for="item in currentQueue" 
                       :key="item.id"
@@ -111,58 +103,57 @@
                       @click="selectItem(item)"
                     >
                       <view class="qi-header">
-                        <text class="qi-type">[{{ item.type }}]</text>
-                        <text class="qi-time">{{ item.time }}</text>
+                        <text class="qi-type">[{{ item.type || '未知类型' }}]</text>
+                        <text class="qi-time">{{ item.time || '--' }}</text>
                       </view>
-                      <text class="qi-title">{{ item.title || item.contentPreview }}</text>
+                      <text class="qi-title">{{ item.title || item.contentPreview || '无内容预览' }}</text>
                       <view class="qi-footer">
-                        <text class="author">By: {{ item.author }}</text>
-                        <view class="risk-badge" :class="item.riskLevel">
+                        <text class="author">By: {{ item.author || '未知用户' }}</text>
+                        <view class="risk-badge" :class="item.riskLevel || 'medium'">
                           {{ item.riskLevel === 'high' ? '高危拦截' : '疑似违规' }}
                         </view>
                       </view>
                     </view>
                   </view>
+                  <view class="empty-state" v-else style="padding-top: 60px;">
+                    <text class="e-icon">🍵</text>
+                    <text class="e-text" style="margin-top: 16px;">当前队列很干净</text>
+                  </view>
                 </scroll-view>
               </view>
 
-              <!-- 内层右侧：审查与判决舱 -->
               <view class="detail-panel">
                 
-                <!-- 空状态 -->
                 <view class="empty-state" v-if="!selectedItem">
                   <text class="e-icon">📋</text>
                   <text class="e-text">请在左侧列表中选择一项进行审核</text>
                 </view>
 
-                <!-- 审核详情内容 -->
                 <view class="detail-content" v-else>
                   <scroll-view class="detail-scroll custom-scrollbar" scroll-y>
                     <view class="detail-inner">
                       
-                      <!-- AI 风控报告 (核心亮点) -->
-                      <view class="ai-risk-report" :class="selectedItem.riskLevel">
+                      <view class="ai-risk-report" :class="selectedItem.riskLevel || 'medium'">
                         <view class="report-header">
                           <text class="r-icon">🤖</text>
                           <text class="r-title">AI 风控引擎诊断报告</text>
                         </view>
                         <view class="report-body">
                           <text class="reason-label">触发风控规则：</text>
-                          <text class="reason-text">{{ selectedItem.aiReason }}</text>
+                          <text class="reason-text">{{ selectedItem.aiReason || '疑似违规，需人工介入判定' }}</text>
                         </view>
                       </view>
 
-                      <!-- 内容展示区 -->
                       <view class="content-display-box">
                         <view class="author-banner">
                           <view class="ab-left">
-                            <view class="ab-avatar">👤</view>
+                            <view class="ab-avatar">{{ selectedItem.authorAvatar || '👤' }}</view>
                             <view class="ab-info">
-                              <text class="ab-name">{{ selectedItem.author }}</text>
-                              <text class="ab-meta">ID: {{ selectedItem.authorId }} · IP属地: 广东</text>
+                              <text class="ab-name">{{ selectedItem.author || '未知用户' }}</text>
+                              <text class="ab-meta">ID: {{ selectedItem.authorId || '--' }} · IP属地: {{ selectedItem.ipLocation || '未知' }}</text>
                             </view>
                           </view>
-                          <text class="ab-history">历史违规: {{ selectedItem.historyViolations }} 次</text>
+                          <text class="ab-history">历史违规: {{ selectedItem.historyViolations || 0 }} 次</text>
                         </view>
 
                         <view class="post-content-area">
@@ -170,8 +161,14 @@
                           <text class="post-text" v-html="highlightSuspectText(selectedItem.content, selectedItem.suspectWords)"></text>
                           
                           <view class="post-images" v-if="selectedItem.hasImage">
-                            <view class="mock-image risk-image">
-                              <text class="img-hint">疑似包含引流二维码</text>
+                            <image 
+                              v-if="selectedItem.imageUrl" 
+                              :src="selectedItem.imageUrl" 
+                              mode="aspectFit" 
+                              style="width: 100%; border-radius: 12px; background: rgba(0,0,0,0.2);" 
+                            />
+                            <view v-else class="mock-image risk-image">
+                              <text class="img-hint">{{ selectedItem.imageHint || '疑似包含违规图片/二维码' }}</text>
                             </view>
                           </view>
                         </view>
@@ -180,7 +177,6 @@
                     </view>
                   </scroll-view>
 
-                  <!-- 底部：判决操作台 -->
                   <view class="action-dock">
                     <view class="action-left">
                       <view class="ghost-btn outline warning-theme" @click="banUser">
@@ -220,27 +216,53 @@ export default {
     return {
       activeTab: 'post',
       selectedItem: null,
-      auditQueue: [] // 初始清空假数据
+      auditQueue: [], // 初始清空假数据
+      onlineUsers: '--',
+      auditCount: 0
     }
   },
   computed: {
     currentQueue() {
       return this.auditQueue.filter(item => item.tab === this.activeTab);
+    },
+    // 🚀 动态计算各类别的数量
+    tabCounts() {
+      return {
+        post: this.auditQueue.filter(item => item.tab === 'post').length,
+        jd: this.auditQueue.filter(item => item.tab === 'jd').length,
+        resume: this.auditQueue.filter(item => item.tab === 'resume').length
+      };
     }
   },
   mounted() {
+    this.fetchSystemStats();
     this.fetchAuditData(); // 页面加载时拉取真实数据
   },
   methods: {
-    // 🚀 [新] 从后端获取待审核列表
+    // 🚀 [新] 获取系统全局指标 (在线人数, 审核数)
+    async fetchSystemStats() {
+      try {
+        const res = await API.getSystemAnalytics();
+        if (res.data) {
+           this.onlineUsers = res.data.online_users || '--';
+           this.auditCount = res.data.pending_audits || 0;
+        }
+      } catch (error) {
+        console.error('获取系统指标失败:', error);
+      }
+    },
+
+    // 🚀 [改] 从后端获取待审核列表
     async fetchAuditData() {
       uni.showLoading({ title: '加载风控队列...' });
       try {
         const res = await API.getAuditList();
-        // 假设后端返回的数据在 res.data 中
-        this.auditQueue = res.data || [];
+        this.auditQueue = res.data?.results || res.data || res.results || res || [];
+        // 更新总体审核数
+        this.auditCount = this.auditQueue.length;
       } catch (error) {
         console.error('获取审核列表失败:', error);
+        uni.showToast({ title: '拉取风控数据异常', icon: 'none' });
       } finally {
         uni.hideLoading();
       }
@@ -251,10 +273,13 @@ export default {
     },
 
     highlightSuspectText(text, suspectWords) {
+      if (!text) return '暂无文本内容';
       let result = text;
-      if (suspectWords && suspectWords.length > 0) {
+      if (suspectWords && Array.isArray(suspectWords) && suspectWords.length > 0) {
         suspectWords.forEach(word => {
-          const regex = new RegExp(word, 'g');
+          // 防止 XSS 或正则崩溃，简单安全处理
+          const safeWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(safeWord, 'g');
           result = result.replace(regex, `<span class="highlight-risk">${word}</span>`);
         });
       }
@@ -263,7 +288,7 @@ export default {
 
     // 🚀 [改] 对接真实通过接口
     async approveItem() {
-      uni.showLoading({ title: '处理中...' });
+      uni.showLoading({ title: '处理中...', mask: true });
       try {
         await API.handleAuditAction({ id: this.selectedItem.id, action: 'approve' });
         uni.hideLoading();
@@ -271,12 +296,13 @@ export default {
         this.removeItemFromQueue();
       } catch (error) {
         uni.hideLoading();
+        uni.showToast({ title: '处理异常请重试', icon: 'none' });
       }
     },
 
     // 🚀 [改] 对接真实驳回/删除接口
     async rejectItem() {
-      uni.showLoading({ title: '清理中...' });
+      uni.showLoading({ title: '清理中...', mask: true });
       try {
         await API.handleAuditAction({ id: this.selectedItem.id, action: 'reject' });
         uni.hideLoading();
@@ -284,6 +310,7 @@ export default {
         this.removeItemFromQueue();
       } catch (error) {
         uni.hideLoading();
+        uni.showToast({ title: '处理异常请重试', icon: 'none' });
       }
     },
 
@@ -291,11 +318,11 @@ export default {
     banUser() {
       uni.showModal({
         title: '风险操作',
-        content: `确定要永久封禁用户 ${this.selectedItem.author} 吗？`,
+        content: `确定要永久封禁用户 ${this.selectedItem.author || '该作者'} 吗？`,
         confirmColor: '#ef4444',
         success: async (res) => {
           if (res.confirm) {
-            uni.showLoading({ title: '封禁中...' });
+            uni.showLoading({ title: '封禁中...', mask: true });
             try {
               // 调用用户治理接口封禁该作者
               await API.handleUserStatus({ id: this.selectedItem.authorId, status: 'banned' });
@@ -304,6 +331,7 @@ export default {
               this.removeItemFromQueue();
             } catch (error) {
               uni.hideLoading();
+              uni.showToast({ title: '封禁操作失败', icon: 'none' });
             }
           }
         }
@@ -313,6 +341,7 @@ export default {
     removeItemFromQueue() {
       if (this.selectedItem) {
         this.auditQueue = this.auditQueue.filter(item => item.id !== this.selectedItem.id);
+        this.auditCount = this.auditQueue.length; // 更新外层总数
         this.selectedItem = null;
       }
     },
@@ -471,7 +500,7 @@ $text-muted: #94a3b8;
 .detail-scroll { flex: 1; height: 0; }
 .detail-inner { padding: 32px; display: flex; flex-direction: column; gap: 24px; }
 
-/* AI 诊断报告框 */
+/* AI 风控报告框 */
 .ai-risk-report { padding: 20px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px dashed; position: relative; }
 .ai-risk-report.high { border-color: rgba($danger, 0.5); background: linear-gradient(135deg, rgba($danger,0.05), transparent); }
 .ai-risk-report.medium { border-color: rgba($warning, 0.5); background: linear-gradient(135deg, rgba($warning,0.05), transparent); }

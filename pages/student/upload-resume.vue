@@ -192,10 +192,10 @@ export default {
         { icon: '🧠', text: '大模型语义理解', progress: 60 },
         { icon: '🏷️', text: '生成技能图谱', progress: 90 }
       ],
-      // 初始化为空，等待真实数据注入
+      // 🚀 置空初始状态，拒绝假数据占位
       resumeInfo: {
-        name: '未知', major: '解析中', education: '解析中',
-        experience: '解析中', target: '解析中',
+        name: '', major: '', education: '',
+        experience: '', target: '',
         skills: []
       }
     }
@@ -209,19 +209,18 @@ export default {
         success: (res) => {
           const file = res.tempFiles[0];
           this.uploadedFile = {
-            name: file.name || '未命名简历.pdf',
+            name: file.name || '未命名简历',
             size: file.size,
             path: file.path || file.tempFilePath
           };
+          // 选择新文件时，重置所有状态
+          this.isParsing = false;
+          this.parseComplete = false;
+          this.progress = 0;
         },
-        fail: () => {
-          // 在不支持 chooseFile 的环境下(如某些PC浏览器预览)使用模拟文件兜底
-          uni.showToast({ title: '启用了本地演示文件', icon: 'none' });
-          this.uploadedFile = { 
-            name: '2026_前端实习简历_测试.pdf', 
-            size: 1048576, 
-            path: 'mock_path' 
-          };
+        fail: (err) => {
+          // 🚀 删除了写死的假简历逻辑。用户取消或报错时直接终止。
+          console.log("选择文件取消/失败:", err);
         }
       });
     },
@@ -234,96 +233,95 @@ export default {
       this.progress = 0;
       this.parseComplete = false;
 
-      // 1. 制造一个“假进度条”跑到 80%，掩盖后端的网络和 AI 解析延迟
+      // 1. UX进度条体验优化：模拟解析进度走到 90%，掩盖 AI 大模型的响应延迟
       const timer = setInterval(() => {
-        if (this.progress < 85) {
-          this.progress += Math.floor(Math.random() * 5) + 1;
+        if (this.progress < 90) {
+          this.progress += Math.floor(Math.random() * 3) + 1;
         }
-      }, 300);
-
-      // 如果是 mock_path 说明是在不支持文件上传的浏览器里兜底，直接触发假完成
-      if (this.uploadedFile.path === 'mock_path') {
-        setTimeout(() => this.finishParsing(timer, null), 2500);
-        return;
-      }
+      }, 250);
 
       // 2. 拿到用户的合法身份证 (Token)
       const token = uni.getStorageSync('token');
 
       // 3. 真实发起 Multipart/form-data 文件上传
       uni.uploadFile({
-        url: `${BASE_URL}/resumes/`, // 使用统一管理的 BASE_URL
+        url: `${BASE_URL}/resumes/`, 
         filePath: this.uploadedFile.path,
-        name: 'resume_file', // 必须与后端 Serializer 期待的字段名严格一致
+        name: 'resume_file', 
         formData: {
           'resume_name': this.uploadedFile.name
         },
         header: {
-          'Authorization': `Bearer ${token}` // 携带 Token 证明学生身份
+          'Authorization': `Bearer ${token}` 
         },
         success: (uploadRes) => {
           clearInterval(timer);
           if (uploadRes.statusCode === 201 || uploadRes.statusCode === 200) {
-            const resData = JSON.parse(uploadRes.data);
-            // 上传且解析成功，把后端的全套数据发给收尾方法
-            this.finishParsing(null, resData);
+            try {
+              const resData = JSON.parse(uploadRes.data);
+              // 🚀 成功解析，渲染真实数据
+              this.renderParsedData(resData);
+            } catch (e) {
+              this.handleUploadFail("引擎返回数据格式异常");
+            }
           } else {
-            console.error("【后端拒绝了上传】状态码:", uploadRes.statusCode);
-            console.error("【后端报错详情】:", uploadRes.data);
-            this.handleUploadFail(timer);
+            console.error("【后端拒绝了上传】状态码:", uploadRes.statusCode, uploadRes.data);
+            this.handleUploadFail("AI 引擎忙，请稍后再试");
           }
         },
         fail: (err) => {
-          console.error("【彻底断网/未连接到后端】:", err);
-          this.handleUploadFail(timer);
+          clearInterval(timer);
+          console.error("【网络断开/请求失败】:", err);
+          this.handleUploadFail("网络连接失败，请检查您的网络");
         }
       });
     },
 
-    // 🚀 解析成功后的收尾动作（全栈联调核心）
-    finishParsing(timer, backendData) {
-      if (timer) clearInterval(timer);
+    // 🚀 渲染真实解析结果
+    renderParsedData(backendData) {
       this.progress = 100;
       
-      // 判断后端是否成功传回了 AI 解析的数据
-      if (backendData && (backendData.code === 201 || backendData.code === 200)) {
-         
-         const realData = backendData.data.parsed_info; // 获取后端的结构化字典
-         
-         // 🚀 把 AI 提取的真实数据赋值给前端 UI！
+      // 判断后端是否成功传回了真实的 AI 解析字典 (parsed_info) 和简历 ID
+      const realData = backendData.data?.parsed_info;
+      const resumeId = backendData.data?.resume_id || backendData.data?.id;
+
+      if (realData && resumeId) {
+         // 把 AI 提取的真实数据赋值给前端 UI，遇到空字段给予合理的文案兜底
          this.resumeInfo = {
-            name: realData.name !== '未知' ? realData.name : (uni.getStorageSync('user_info')?.username || '同学'),
+            name: realData.name || '未提取到姓名',
             major: realData.major || '未提取到专业',
-            education: realData.education || '未提供学历',
-            experience: realData.experience || '无经验信息',
-            target: realData.target || '未提供求职目标',
-            // 如果提取到了技能数组，就展示，否则展示兜底
-            skills: (realData.skills && realData.skills.length > 0) ? realData.skills : ['暂未提取到核心技能']
+            education: realData.education || '未提取到学历',
+            experience: realData.experience || '未提取到工作经验',
+            target: realData.target || '未明确求职目标',
+            skills: (Array.isArray(realData.skills) && realData.skills.length > 0) ? realData.skills : ['未提取到明显技能']
          };
 
-         // 🚀 极其关键：将真实的简历 ID 存入本地缓存，这是下一步去匹配岗位的“入场券”！
-         uni.setStorageSync('current_resume_id', backendData.data.resume_id);
+         // 将真实的简历 ID 存入本地缓存，作为下一步去匹配岗位的“入场券”
+         uni.setStorageSync('current_resume_id', resumeId);
+
+         setTimeout(() => {
+           this.isParsing = false;
+           this.parseComplete = true;
+           uni.showToast({ title: '数字分身构建完成', icon: 'success' });
+         }, 400);
+
       } else {
-         // 这是用于无网测试时的兜底假数据
-         this.resumeInfo = {
-            name: uni.getStorageSync('user_info')?.username || '测试同学',
-            major: '计算机科学', education: '本科', experience: '1年经验', target: '前端开发',
-            skills: ['Vue', 'JavaScript', '兜底测试技能']
-         };
+         // 🚀 剔除了原本的“测试同学”假数据兜底，改为严肃的错误处理
+         this.handleUploadFail("简历核心信息提取不完整，请尝试其他格式");
       }
-
-      setTimeout(() => {
-        this.isParsing = false;
-        this.parseComplete = true;
-        uni.showToast({ title: '数字分身构建完成', icon: 'success' });
-      }, 400);
     },
 
-    // 失败兜底，保证演示不中断
-    handleUploadFail(timer) {
-      clearInterval(timer);
-      uni.showToast({ title: '网络异常，启用本地演示模式', icon: 'none' });
-      this.finishParsing(null, null);
+    // 失败处理中枢
+    handleUploadFail(msg) {
+      this.isParsing = false;
+      this.progress = 0;
+      uni.showModal({
+        title: '解析失败',
+        content: msg,
+        showCancel: false,
+        confirmColor: '#ef4444',
+        confirmText: '我知道了'
+      });
     },
 
     reupload() {
@@ -332,21 +330,23 @@ export default {
       this.parseComplete = false;
       this.progress = 0;
     },
+
     goToMatchResult() {
-      // 判断是否拿到了刚刚上传成功的简历 ID，如果没有拿到说明上传失败了
       const resumeId = uni.getStorageSync('current_resume_id');
       if (!resumeId) {
-          uni.showToast({ title: '找不到真实简历数据，无法匹配', icon: 'none' });
+          uni.showToast({ title: '找不到有效的简历凭证，请重新解析', icon: 'none' });
           return;
       }
       uni.navigateTo({ url: '/pages/student/match-result' });
     },
+
     formatFileSize(size) {
-      if (!size) return '未知大小';
+      if (!size) return '0 B';
       if (size < 1024) return size + ' B';
       if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB';
       return (size / (1024 * 1024)).toFixed(2) + ' MB';
     },
+
     getCurrentTime() {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;

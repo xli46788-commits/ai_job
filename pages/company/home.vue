@@ -71,7 +71,7 @@
                 </view>
                 <view class="cyber-progress-container">
                   <view class="cyber-progress-bar" :style="{ width: `${stat.percentage}%` }">
-                    <view class="progress-glow"></view>
+                    <view class="progress-glow" v-if="stat.percentage > 0"></view>
                   </view>
                 </view>
               </view>
@@ -120,7 +120,7 @@
               </view>
             </view>
 
-            <view class="applications-grid">
+            <view class="applications-grid" v-if="recentApplications.length > 0">
               <view 
                 v-for="(app, index) in recentApplications" 
                 :key="index" 
@@ -147,10 +147,13 @@
                     </view>
                   </view>
 
-                  <view class="skills-tags">
+                  <view class="skills-tags" v-if="app.skills && app.skills.length > 0">
                     <view v-for="(skill, skillIndex) in app.skills" :key="skillIndex" class="neon-tag">
                       {{ skill }}
                     </view>
+                  </view>
+                  <view class="skills-tags" v-else>
+                    <view class="neon-tag" style="opacity: 0.5;">暂未提取到核心技能</view>
                   </view>
 
                   <view class="application-meta">
@@ -172,12 +175,12 @@
                   </view>
                 </view>
               </view>
-              
-              <view v-if="recentApplications.length === 0" style="padding: 40px; text-align: center; grid-column: span 2; color: #64748b;">
-                暂无收到的简历投递记录，快去发布岗位吧！🚀
-              </view>
-              
             </view>
+
+            <view v-else style="padding: 40px; text-align: center; color: #64748b; background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.1);">
+              暂无收到的简历投递记录，快去发布岗位吧！🚀
+            </view>
+            
           </view>
           
         </view>
@@ -200,7 +203,7 @@
               <view class="divider"></view>
               
               <scroll-view class="assistant-body-v custom-scrollbar" scroll-y>
-                <view class="insight-block primary">
+                <view class="insight-block primary" v-if="recentApplications.length > 0">
                   <view class="insight-title">🚀 招聘加速建议</view>
                   <view class="message-text">
                     已为您发掘 <text class="highlight-num">{{ recentApplications.length }}</text> 位高潜力候选人。能力模型与核心缺口高度重合，建议立即发起邀约，抢占人才先机！
@@ -213,10 +216,10 @@
                 <view class="insight-block">
                   <view class="insight-title">📊 行业供需异动</view>
                   <view class="message-text small">
-                    过去 24 小时内，<text class="highlight-text">算法工程师</text> 岗位的投递热度环比下降 15%。建议适当放宽 JD 限制或提升薪资预算边界。
+                    {{ marketInsight }}
                   </view>
                   <view class="ghost-btn outline fill-width mt-12" @click="handleAction('/pages/company/post-job')">
-                    <text>优化岗位 JD</text>
+                    <text>发布/优化岗位</text>
                   </view>
                 </view>
               </scroll-view>
@@ -242,16 +245,20 @@ import { API } from '../../utils/api.js';
 export default {
   data() {
     return {
+      // 🚀 初始化去除了所有的 12%、85% 假数据，等待后端真实填充
       statsList: [
-        { icon: '📄', value: 0, label: '收到简历', trend: 'up', trendIcon: '↗', trendValue: '12%', percentage: 85 },
-        { icon: '🚀', value: 0, label: '发布岗位', trend: 'up', trendIcon: '↗', trendValue: '3%', percentage: 60 },
-        { icon: '📅', value: 0, label: '安排面试', trend: 'up', trendIcon: '↗', trendValue: '8%', percentage: 45 },
-        { icon: '🎉', value: 0, label: '成功录用', trend: 'up', trendIcon: '↗', trendValue: '5%', percentage: 25 }
+        { icon: '📄', value: 0, label: '收到简历', trend: 'neutral', trendIcon: '-', trendValue: '--', percentage: 0 },
+        { icon: '🚀', value: 0, label: '发布岗位', trend: 'neutral', trendIcon: '-', trendValue: '--', percentage: 0 },
+        { icon: '📅', value: 0, label: '安排面试', trend: 'neutral', trendIcon: '-', trendValue: '--', percentage: 0 },
+        { icon: '🎉', value: 0, label: '成功录用', trend: 'neutral', trendIcon: '-', trendValue: '--', percentage: 0 }
       ],
-      recentApplications: [], // 🚀 初始为空，由后端真实数据填充
+      recentApplications: [], 
+      marketInsight: 'AI 正在综合全网招聘大盘数据，为您生成专属的行业供需趋势报告...', // 动态占位符
+      
+      // 这是系统页面路由，不是假数据
       quickActions: [
         { icon: '✏️', title: '发布新岗位', description: 'AI智能润色JD', route: '/pages/company/post-job' },
-        { icon: '🗂️', title: '人才资产库', description: '激活沉淀简历', route: '/pages/company/resume-list' }, // 指向筛选页
+        { icon: '🗂️', title: '人才资产库', description: '激活沉淀简历', route: '/pages/company/resume-list' },
         { icon: '🏢', title: '在招职位管理', description: '调整岗位生命周期', route: '/pages/company/job-list' },
         { icon: '📈', title: '全景漏斗分析', description: '生成多维数据报表', route: '/pages/company/analytics' }
       ]
@@ -259,7 +266,7 @@ export default {
   },
   mounted() {
     this.fetchDashboardStats();
-    this.fetchRecentApplications(); // 🚀 新增：拉取真实投递列表
+    this.fetchRecentApplications();
   },
   methods: {
     // 🚀 1. 真实：拉取全景大盘数据
@@ -268,42 +275,52 @@ export default {
         const res = await API.getEnterpriseStats();
         if (res.data) {
           const stats = res.data;
+          
+          // 动态组装四个指标。如果后端传了 trend 等字段也可以动态替换
           this.statsList[0].value = stats.received_resumes || 0;
+          this.statsList[0].percentage = stats.received_resumes > 0 ? 100 : 0; // 简单换算逻辑
+          
           this.statsList[1].value = stats.published_jobs || 0;
+          this.statsList[1].percentage = stats.published_jobs > 0 ? 100 : 0;
+          
           this.statsList[2].value = stats.interviews || 0;
+          // 例如：面试转化率
+          this.statsList[2].percentage = stats.received_resumes > 0 ? Math.round((stats.interviews / stats.received_resumes) * 100) : 0;
+          
           this.statsList[3].value = stats.hired || 0;
+          // 例如：录用转化率
+          this.statsList[3].percentage = stats.interviews > 0 ? Math.round((stats.hired / stats.interviews) * 100) : 0;
         }
       } catch (error) {
         console.error('全景数据拉取失败，请检查接口', error);
       }
     },
 
-    // 🚀 2. 真实：拉取今日高潜推荐（最新收到的简历）
+    // 🚀 2. 真实：拉取今日高潜推荐
     async fetchRecentApplications() {
       try {
         const res = await API.getCompanyDeliveries();
         const records = res.data?.results || res.data || res.results || res || [];
         
         if (records.length > 0) {
-          // 只取前 4 个最新投递作为推荐
           this.recentApplications = records.slice(0, 4).map(r => {
-            // 解析 AI 返回的 JSON 洞察，提取出技能
             let parsedInsight = {};
             try { parsedInsight = r.ai_insight ? JSON.parse(r.ai_insight) : {}; } catch(e) {}
             
-            // 映射中文状态
             const statusMap = { 'pending': '待处理', 'viewed': '已查看', 'interview': '面试中', 'rejected': '已淘汰' };
 
             return {
               id: r.application_id, 
-              name: r.student_name || '求职者',
-              major: '计算机/软件相关', // 临时兜底，如果简历模型里有可以替换
-              school: '匹配高校',
-              matchRate: r.match_score || 85,
-              skills: parsedInsight.skills || ['Python', '前端', '沟通能力'],
+              name: r.student_name || '未知候选人',
+              major: parsedInsight.major || '计算机/软件相关',
+              school: parsedInsight.school || '匹配高校',
+              // 🚀 剔除写死的 85 分，改为 0 分兜底
+              matchRate: r.match_score || 0,
+              // 🚀 剔除写死的假技能
+              skills: (parsedInsight.skills && Array.isArray(parsedInsight.skills)) ? parsedInsight.skills.slice(0, 3) : [],
               time: this.formatTime(r.created_at),
               targetJob: r.job_name || '目标岗位',
-              backendStatus: r.status, // 用于渲染指示器颜色
+              backendStatus: r.status,
               statusText: statusMap[r.status] || '待处理'
             };
           });
@@ -313,7 +330,6 @@ export default {
       }
     },
 
-    // 辅助方法：格式化投递时间为“刚刚”、“xx分钟前”
     formatTime(dateStr) {
       if (!dateStr) return '刚刚';
       const diff = Math.floor((new Date() - new Date(dateStr)) / 1000);
@@ -323,9 +339,7 @@ export default {
       return `${Math.floor(diff / 86400)} 天前`;
     },
 
-    // 🚀 3. 真实：点击高潜简历，跳转到“智能简历筛选页”并携带 ID
     viewResume(app) { 
-      // 携带此投递记录的 id 跳转，方便目标页直接选中他
       uni.navigateTo({ url: `/pages/company/resume-list?id=${app.id}` }); 
     },
     
@@ -339,6 +353,7 @@ export default {
     getMatchBadgeStyle(matchRate) {
       if (matchRate >= 90) return { '--theme': '#10b981', '--bg': 'rgba(16, 185, 129, 0.1)', '--glow': 'rgba(16, 185, 129, 0.4)' };
       if (matchRate >= 80) return { '--theme': '#3b82f6', '--bg': 'rgba(59, 130, 246, 0.1)', '--glow': 'rgba(59, 130, 246, 0.4)' };
+      if (matchRate === 0) return { '--theme': '#94a3b8', '--bg': 'rgba(255, 255, 255, 0.05)', '--glow': 'rgba(255, 255, 255, 0.1)' };
       return { '--theme': '#f59e0b', '--bg': 'rgba(245, 158, 11, 0.1)', '--glow': 'rgba(245, 158, 11, 0.4)' };
     },
 
@@ -359,11 +374,11 @@ export default {
     },
 
     handleStatus(app) { uni.showToast({ title: '请在详情页进行状态流转', icon: 'none' }); },
-    contactApplicant(app) { uni.showActionSheet({ itemList: ['AI生成邀约话术', '发送站内信'], success: () => { uni.showToast({ title: '已触达', icon: 'success' }); } }); },
+    contactApplicant(app) { uni.showToast({ title: '即将唤起内部沟通组件...', icon: 'none' }); },
     handleAction(route) { uni.navigateTo({ url: route }); },
     autoScheduleInterviews() {
-      uni.showLoading({ title: '引擎运转中...', mask: true });
-      setTimeout(() => { uni.hideLoading(); uni.showToast({ title: '已锁定档期', icon: 'success' }); }, 1500);
+      // 🚀 替换为更严谨的业务话术
+      uni.showToast({ title: '该功能需要接入企业日历授权，暂未开放', icon: 'none' });
     },
     goToResumeList() { uni.navigateTo({ url: '/pages/company/resume-list' }); }
   }
@@ -449,13 +464,14 @@ $text-muted: #94a3b8;
 .stat-icon-wrapper { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; font-size: 18px; border: 1px solid rgba(255,255,255,0.08); }
 .trend-indicator { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 8px; font-size: 12px; font-weight: 600; }
 .trend-indicator.up { color: $success; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); }
+.trend-indicator.neutral { color: #94a3b8; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); }
 .stat-bottom { position: relative; z-index: 1; display: flex; flex-direction: column; }
 .number-value.gradient-text { font-size: 36px; font-weight: 800; line-height: 1.2; margin-bottom: 2px; background: linear-gradient(135deg, #fff 20%, $primary-light 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .stat-theme-1 .number-value.gradient-text { background: linear-gradient(135deg, #fff 20%, $secondary-light 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .stat-theme-3 .number-value.gradient-text { background: linear-gradient(135deg, #fff 20%, #6ee7b7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .stat-label { font-size: 13px; color: $text-muted; font-weight: 500; }
 .cyber-progress-container { width: 100%; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-top: auto; position: relative; z-index: 1; overflow: hidden; }
-.cyber-progress-bar { height: 100%; background: $primary; border-radius: 2px; position: relative; }
+.cyber-progress-bar { height: 100%; background: $primary; border-radius: 2px; position: relative; transition: width 0.5s ease; }
 .stat-theme-1 .cyber-progress-bar { background: $secondary; } .stat-theme-2 .cyber-progress-bar { background: $accent; } .stat-theme-3 .cyber-progress-bar { background: $success; }
 
 /* ==================== 左侧：快捷操作 ==================== */

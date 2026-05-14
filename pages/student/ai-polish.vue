@@ -175,7 +175,7 @@
                   </view>
                 </view>
 
-                <view class="ai-suggestions-panel mt-32">
+                <view class="ai-suggestions-panel mt-32" v-if="polishTips.length > 0">
                   <text class="panel-title">💡 引擎分析报告</text>
                   <view class="tips-list">
                     <view class="tip-item" v-for="(tip, index) in polishTips" :key="index">
@@ -212,6 +212,7 @@ export default {
       selectedStyle: 'professional',
       optimizationTime: 0,
       
+      // 这里的风格配置属于系统级常量选项，不算假数据，安全保留
       polishStyles: [
         { label: '专业正式', value: 'professional', icon: '👔', description: '严谨专业，适合大厂投递' },
         { label: '精炼干脆', value: 'concise', icon: '⚡', description: '剔除冗余，STAR法则凸显' },
@@ -235,6 +236,7 @@ export default {
             that.isPolishing = true;
             that.polishedContent = '';
             that.optimizationTime = 0;
+            that.polishTips = [];
             
             const startTime = Date.now();
             
@@ -254,20 +256,23 @@ export default {
               if (resData.code === 200 || realData.code === 200) {
                  // 成功获取 AI 回复！
                  that.polishedContent = realData.polishedContent || realData.data?.polishedContent;
+                 // 拿到真实的分析建议，如果没有传则兜底系统默认建议
                  that.polishTips = realData.tips || realData.data?.tips || that.getDefaultTips();
                  uni.showToast({ title: 'AI润色完成！', icon: 'success' });
               } else {
                  // 接口通了，但后端业务报错
-                 throw new Error(resData.msg || '后端返回异常');
+                 throw new Error(realData.msg || resData.msg || '后端返回异常');
               }
               
             } catch (error) {
               console.error("AI 接口请求异常:", error);
-              // 🚀 明确告诉用户：真实 AI 挂了，现在出场的是备用数据
-              uni.showToast({ title: 'AI 响应超时，启用本地备用模型', icon: 'none', duration: 3000 });
+              // 🚀 真实错误处理：明确告诉用户失败了，拒绝假数据兜底
+              const errMsg = error.message || 'AI 响应超时或服务异常，请稍后重试';
+              uni.showToast({ title: errMsg, icon: 'none', duration: 3000 });
               
-              that.generateMockResult();
-              that.optimizationTime = ((Date.now() - startTime) / 1000).toFixed(1);
+              // 重置状态，保持在编辑页面
+              that.polishedContent = '';
+              that.optimizationTime = 0;
             } finally {
               // 关闭骨架屏加载动画
               that.isPolishing = false;
@@ -277,23 +282,12 @@ export default {
       });
     },
     
-    // 获取默认的提示列表
+    // 获取基础的提示列表（当后端AI只返回文本没有返回tips时，优雅降级的占位话术）
     getDefaultTips() {
       return [
-        { icon: '🤖', title: '大模型重构', description: '已通过 DeepSeek 模型对原始语段进行了深度语义重构。' },
+        { icon: '🤖', title: '大模型重构', description: '已通过深度学习模型对原始语段进行了语义重构。' },
         { icon: '🎯', title: '逻辑梳理', description: '采用 STAR 法则，使背景、任务、行动与结果层次分明。' }
       ];
-    },
-
-    // 兜底演示数据 (如果网络断了或大模型抽风，保证演示顺利进行)
-    generateMockResult() {
-      const style = this.selectedStyle;
-      if (style === 'professional') {
-        this.polishedContent = `【AI 连接超时，此为兜底预设数据】\n\n【项目经历】主导开发了核心业务模块。通过对长列表渲染及静态资源打包策略的重构，成功将首屏加载时间缩短 40%。\n\n【职业素养】具备系统化的需求分析拆解能力与跨部门协同沟通能力。`;
-      } else {
-        this.polishedContent = `【AI 连接超时，此为兜底预设数据】\n\n• 技术栈：深度掌握 JavaScript, Vue/React。\n• 项目实战：主导核心模块重构，提升页面渲染速度 40%。`;
-      }
-      this.polishTips = this.getDefaultTips();
     },
 
     copyResult() {
@@ -302,10 +296,12 @@ export default {
         success: () => { uni.showToast({ title: '已复制到剪贴板', icon: 'success' }); }
       });
     },
+    
     replaceContent() {
       this.originalContent = this.polishedContent;
       uni.showToast({ title: '原文已替换', icon: 'success' });
     },
+    
     goBack() { uni.navigateBack(); }
   }
 }
@@ -368,7 +364,7 @@ $text-muted: #94a3b8;
   background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
   backdrop-filter: blur(32px); border: 1px solid rgba(255,255,255,0.06);
   border-top: 1px solid rgba(255,255,255,0.12); border-left: 1px solid rgba(255,255,255,0.08);
-  border-radius: 24px; box-shadow: 0 16px 40px -10px rgba(0,0,0,0.5); overflow: hidden;
+  border-radius: 24px; box-shadow: 0 16px 40px -10px rgba(0,0,0,0.5); overflow: hidden; position: relative;
 }
 
 /* ==================== 左侧：编辑控制舱 ==================== */

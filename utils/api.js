@@ -6,7 +6,6 @@ export const API = {
   login: (data) => request({ url: '/accounts/login/', method: 'POST', data }),
   register: (data) => request({ url: '/accounts/register/', method: 'POST', data }),
   getUserProfile: () => request({ url: '/accounts/profile/', method: 'GET' }),
-  rechargePoints: (data) => request({ url: '/accounts/recharge/', method: 'POST', data }),
 
   // ================= 【学生端模块 Student】 =================
   uploadResume: (data) => request({ url: '/resumes/upload/', method: 'POST', data }),
@@ -37,8 +36,7 @@ export const API = {
   postJob: (data) => request({ url: '/jobs/', method: 'POST', data }),
   getCompanyJobs: () => request({ url: '/jobs/', method: 'GET' }),
   updateJob: (id, data) => request({ url: `/jobs/${id}/`, method: 'PATCH', data }),
-  getCompanyDeliveries: () => request({ url: '/matching/deliveries/', method: 'GET' }),
-  updateDeliveryStatus: (deliveryId, data) => request({ url: `/matching/deliveries/${deliveryId}/update_status/`, method: 'POST', data }),
+  analyzeJobDescription: (data) => request({ url: '/jobs/analyze/', method: 'POST', data }),
   // 1. 企业拉取收到的所有简历投递
   getCompanyDeliveries: () => request({ url: '/jobs/applications/', method: 'GET' }),
   

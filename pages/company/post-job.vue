@@ -185,14 +185,16 @@
                   <view class="score-card">
                     <text class="score-label">当前吸引力评估</text>
                     <view class="score-value-wrap">
-                      <text class="score-value">85</text>
+                      <text class="score-value">{{ aiSuggestions.score || 85 }}</text>
                       <text class="score-unit">/100</text>
                     </view>
-                    <view class="progress-bar"><view class="progress-inner" style="width: 85%"></view></view>
+                    <view class="progress-bar">
+                      <view class="progress-inner" :style="{ width: (aiSuggestions.score || 85) + '%' }"></view>
+                    </view>
                   </view>
 
                   <view class="suggestion-box">
-                    <text class="highlight-title">{{ aiSuggestions.title }}</text>
+                    <text class="highlight-title">{{ aiSuggestions.title || '💡 优化建议：' }}</text>
                     <text class="suggestion-content">{{ aiSuggestions.content }}</text>
                   </view>
 
@@ -217,12 +219,12 @@ import { API } from '../../utils/api.js';
 export default {
   data() {
     return {
-      // 修改点：加上 contact_info
       jobForm: { title: '', salary: '', location: '', count: '', description: '', requirements: '', tags: [], contact_info: '' },
       newTag: '',
       aiSuggestions: null,
       isAnalyzing: false,
       analyzeTimeout: null,
+      // 热门标签属于合理的静态前端配置，予以保留
       popularTags: ['Vue 3', 'React', 'TypeScript', 'Node.js', 'Go', 'Python', 'AIGC', '大模型', '商业化', '数据增长']
     };
   },
@@ -239,11 +241,12 @@ export default {
       if (this.analyzeTimeout) clearTimeout(this.analyzeTimeout);
       
       this.analyzeTimeout = setTimeout(() => {
-        // AI 防抖监听预留
+        // 真实业务中可在此处自动触发防抖的大模型诊断
       }, 1500);
     },
 
-    getAISuggestions() {
+    // 🚀 核心重构：替换死数据，真实调用大模型诊断 API
+    async getAISuggestions() {
       if (this.jobForm.description.length < 10) { 
         uni.showToast({ title: '岗位描述太短啦', icon: 'none' }); 
         return; 
@@ -251,20 +254,33 @@ export default {
       this.isAnalyzing = true;
       this.aiSuggestions = null;
       
-      // 这里的兜底假数据建议，后续可替换为真正的 API.polishResumeText() 请求
-      setTimeout(() => {
-        this.isAnalyzing = false;
+      try {
+        // 假设您在 api.js 中新加了 analyzeJobDescription 接口
+        // 如果后端还没写这个接口，调用会报错走 catch 分支，绝不会强塞死数据
+        const res = await API.analyzeJobDescription({ description: this.jobForm.description });
+        const realData = res.data?.data || res.data || res;
+        
         this.aiSuggestions = {
-          title: '💡 愿景维度缺失：',
-          content: '当前描述偏向执行层。建议补充：“您将参与构建千万级并发流量的 AI 核心链路，主导前端架构演进”。这样的表述能提升高级人才 300% 的投递意愿。'
+          title: realData.title || '💡 AI 洞察建议：',
+          content: realData.content || '建议补充具体的业务场景和技术栈，以吸引精准人才。',
+          score: realData.score || 85 // 大模型返回的吸引力打分
         };
-      }, 1500);
+      } catch (error) {
+        console.error("AI诊断异常:", error);
+        uni.showToast({ title: 'AI引擎响应超时，请稍后重试', icon: 'none' });
+      } finally {
+        this.isAnalyzing = false;
+      }
     },
     
+    // 🚀 安全重构：解绑了硬编码字符串的替换逻辑
     applySuggestion(suggestion) {
-      this.jobForm.description += '\n\n【团队愿景】\n' + suggestion.content.replace('💡 愿景维度缺失：', '');
+      if (!suggestion || !suggestion.content) return;
+      
+      // 动态将真实 AI 的建议追加进去，并加上明显的分隔
+      this.jobForm.description += '\n\n【AI 优化补充】\n' + suggestion.content;
       this.aiSuggestions = null;
-      uni.showToast({ title: 'JD 已重塑', icon: 'success' });
+      uni.showToast({ title: 'JD 已融合 AI 建议', icon: 'success' });
     },
 
     saveAsDraft() {
@@ -272,10 +288,8 @@ export default {
     },
 
     async submitJob() {
-      // 修改点：解构加了 contact_info
       const { title, salary, location, count, description, requirements, tags, contact_info } = this.jobForm;
       
-      // 修改点：校验加了 contact_info
       if (!title || !salary || !location || !count || !description || !requirements || !contact_info) {
         uni.showToast({ title: '请完善星号必填项', icon: 'none' });
         return;
@@ -293,7 +307,6 @@ export default {
           is_published: true,
           recruit_count: parseInt(count) || 1, 
           job_keywords: tags.length > 0 ? tags.join(',') : '',
-          // 修改点：传参加上 contact_info
           contact_info: contact_info
         };
         

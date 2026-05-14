@@ -1,6 +1,5 @@
 <template>
   <view class="company-universe-web">
-    <!-- 极光背景层 -->
     <view class="aurora-wrapper">
       <view class="orb orb-1"></view>
       <view class="orb orb-2"></view>
@@ -10,7 +9,6 @@
     </view>
 
     <view class="workspace-layout">
-      <!-- 顶部导航 -->
       <view class="glass-header fade-in-down">
         <view class="header-left">
           <view class="icon-btn" @click="goBack" title="返回控制台">
@@ -19,14 +17,13 @@
           <text class="title">全景漏斗分析</text>
         </view>
         <view class="header-right">
-          <!-- 全局时间筛选器 -->
           <view class="time-filter-group">
             <view 
               v-for="(tf, index) in timeFilters" 
               :key="index"
               class="tf-btn"
               :class="{ active: currentTimeFilter === tf.value }"
-              @click="currentTimeFilter = tf.value"
+              @click="handleTimeFilterChange(tf.value)"
             >
               {{ tf.label }}
             </view>
@@ -37,56 +34,45 @@
         </view>
       </view>
 
-      <!-- 核心工作区 -->
       <scroll-view class="dashboard-scroll custom-scrollbar" scroll-y>
         <view class="dashboard-body">
           
-          <!-- 第一排：核心数据概览 (4 卡片) -->
           <view class="overview-grid fade-in-up delay-1">
             <view class="ultra-glass-card kpi-card" v-for="(kpi, index) in kpiData" :key="index">
               <view class="kpi-header">
                 <view class="kpi-icon-box" :class="`theme-${index}`">{{ kpi.icon }}</view>
-                <view class="trend-badge" :class="kpi.trendType">
-                  {{ kpi.trend === 'up' ? '↗' : '↘' }} {{ kpi.trendRate }}
+                <view class="trend-badge" :class="kpi.trendType" v-if="kpi.trendRate !== '--'">
+                  {{ kpi.trend === 'up' ? '↗' : (kpi.trend === 'down' ? '↘' : '-') }} {{ kpi.trendRate }}
                 </view>
               </view>
               <view class="kpi-content">
                 <text class="kpi-value">{{ kpi.value }}</text>
                 <text class="kpi-label">{{ kpi.label }}</text>
               </view>
-              <!-- 底部极细发光线 -->
               <view class="kpi-bottom-line" :class="`line-${index}`"></view>
             </view>
           </view>
 
-          <!-- 第二排：主图表区 (左侧漏斗 + 右侧AI洞察) -->
           <view class="main-chart-row fade-in-up delay-2">
             
-            <!-- 左侧：纯 CSS 晶态阶梯漏斗 -->
             <view class="ultra-glass-card chart-panel">
               <view class="panel-header">
                 <text class="panel-title">招聘全链路转化漏斗</text>
                 <text class="panel-subtitle">候选人生命周期监控</text>
               </view>
               
-              <view class="funnel-container">
+              <view class="funnel-container" v-if="funnelStages.length > 0">
                 <view class="funnel-stage" v-for="(stage, index) in funnelStages" :key="index">
-                  
-                  <!-- 左侧标签 -->
                   <view class="stage-info">
                     <text class="s-icon">{{ stage.icon }}</text>
                     <text class="s-name">{{ stage.name }}</text>
                     <text class="s-val">{{ stage.count }}</text>
                   </view>
-                  
-                  <!-- 中间能量条 -->
                   <view class="stage-bar-wrap">
                     <view class="stage-bar" :style="{ width: stage.percent + '%', background: stage.color }">
                       <view class="bar-glow"></view>
                     </view>
                   </view>
-                  
-                  <!-- 右侧转化率指示 (首个阶段不显示流失率) -->
                   <view class="stage-conversion" v-if="index > 0">
                     <view class="conv-line"></view>
                     <view class="conv-badge">
@@ -96,9 +82,13 @@
                   </view>
                 </view>
               </view>
+              
+              <view class="empty-state mini" v-else>
+                <text class="empty-icon">📉</text>
+                <text class="empty-text">当前时段暂无漏斗数据</text>
+              </view>
             </view>
 
-            <!-- 右侧：AI 数据领航员 -->
             <view class="ai-insight-panel">
               <view class="liquid-ai-card h-full">
                 <view class="liquid-bg"></view>
@@ -112,44 +102,47 @@
                   </view>
                   
                   <scroll-view class="ai-msg-scroll custom-scrollbar" scroll-y>
-                    <!-- 警告型洞察 -->
-                    <view class="insight-msg warning">
-                      <view class="msg-icon">⚠️</view>
-                      <view class="msg-text">
-                        <text class="m-title">初筛流失率异常</text>
-                        <text class="m-desc">从“收到投递”到“进入面试”的转化率仅为 <text class="highlight-warn">18%</text>，低于行业均值(25%)。AI 判断原因是**简历解析标签与JD要求存在断层**。</text>
+                    
+                    <view v-if="aiInsights.length > 0">
+                      <view 
+                        class="insight-msg" 
+                        v-for="(insight, index) in aiInsights" 
+                        :key="index"
+                        :class="insight.type"
+                        :style="index > 0 ? 'margin-top: 16px;' : ''"
+                      >
+                        <view class="msg-icon">{{ insight.type === 'warning' ? '⚠️' : '💡' }}</view>
+                        <view class="msg-text">
+                          <text class="m-title">{{ insight.title }}</text>
+                          <rich-text class="m-desc" :nodes="insight.desc"></rich-text>
+                        </view>
+                      </view>
+
+                      <view class="action-card mt-16" v-if="hasOptimizationSuggest">
+                        <text class="ac-title">AI 优化建议：重构筛选标准</text>
+                        <view class="liquid-btn micro mt-10" @click="applyAIStrategy">
+                          <text class="btn-txt">⚡ 一键应用智能策略</text>
+                        </view>
                       </view>
                     </view>
 
-                    <!-- 积极型洞察 -->
-                    <view class="insight-msg success mt-16">
-                      <view class="msg-icon">💡</view>
-                      <view class="msg-text">
-                        <text class="m-title">Offer 接受率极佳</text>
-                        <text class="m-desc">Offer 阶段的接受率高达 <text class="highlight-succ">85%</text>。您的企业雇主品牌极具吸引力，建议在招聘前端放大团队氛围和福利待遇的宣传。</text>
-                      </view>
+                    <view class="empty-state mini" style="padding-top: 40px;" v-else>
+                      <text class="empty-icon">🤖</text>
+                      <text class="empty-text">数据量不足，AI 正在收集中...</text>
                     </view>
 
-                    <!-- 操作建议 -->
-                    <view class="action-card mt-16">
-                      <text class="ac-title">AI 优化建议：重构筛选标准</text>
-                      <view class="liquid-btn micro mt-10" @click="applyAIStrategy">
-                        <text class="btn-txt">⚡ 一键优化智能筛选模型</text>
-                      </view>
-                    </view>
                   </scroll-view>
                 </view>
               </view>
             </view>
           </view>
 
-          <!-- 第三排：多维细分分析 -->
           <view class="sub-chart-row fade-in-up delay-3">
             <view class="ultra-glass-card sub-panel">
               <view class="panel-header">
                 <text class="panel-title">各岗位面试效率 (Top 3)</text>
               </view>
-              <view class="efficiency-list">
+              <view class="efficiency-list" v-if="efficiencyJobs.length > 0">
                 <view class="eff-item" v-for="(job, i) in efficiencyJobs" :key="i">
                   <text class="eff-name">{{ job.name }}</text>
                   <view class="eff-bar-bg">
@@ -158,30 +151,26 @@
                   <text class="eff-score">{{ job.days }} 天/人</text>
                 </view>
               </view>
+              <view class="empty-state mini" v-else>
+                <text class="empty-text">暂无面试效率数据</text>
+              </view>
             </view>
 
             <view class="ultra-glass-card sub-panel">
               <view class="panel-header">
                 <text class="panel-title">人才渠道贡献率</text>
               </view>
-              <view class="channel-list">
-                <view class="ch-item">
-                  <text class="ch-dot c-1"></text>内推 (45%)
+              <view class="channel-list" v-if="channelData.length > 0">
+                <view class="ch-item" v-for="(ch, idx) in channelData" :key="idx">
+                  <text class="ch-dot" :class="`c-${idx + 1}`"></text>{{ ch.name }} ({{ ch.percent }}%)
                 </view>
-                <view class="ch-item">
-                  <text class="ch-dot c-2"></text>自营官网 (30%)
-                </view>
-                <view class="ch-item">
-                  <text class="ch-dot c-3"></text>猎头渠道 (15%)
-                </view>
-                <view class="ch-item">
-                  <text class="ch-dot c-4"></text>其他 (10%)
-                </view>
+              </view>
+              <view class="empty-state mini" v-else>
+                <text class="empty-text">暂无渠道数据</text>
               </view>
             </view>
           </view>
 
-          <!-- 底部安全距离 -->
           <view class="safe-area-bottom"></view>
         </view>
       </scroll-view>
@@ -190,6 +179,7 @@
 </template>
 
 <script>
+// 🚀 引入真实接口
 import { API } from '../../utils/api.js';
 
 export default {
@@ -202,53 +192,66 @@ export default {
         { label: '近30天', value: '30d' },
         { label: '本季度', value: 'quarter' }
       ],
-      kpiData: [],
+      // 🚀 初始化为安全占位符，拒绝写死
+      kpiData: [
+        { label: '职位总曝光', value: '--', icon: '👁️', trend: 'neutral', trendRate: '--', trendType: 'neutral' },
+        { label: '收到新简历', value: '--', icon: '📥', trend: 'neutral', trendRate: '--', trendType: 'neutral' },
+        { label: '进行中面试', value: '--', icon: '🗣️', trend: 'neutral', trendRate: '--', trendType: 'neutral' },
+        { label: '已发 Offer', value: '--', icon: '🎉', trend: 'neutral', trendRate: '--', trendType: 'neutral' }
+      ],
       funnelStages: [],
-      efficiencyJobs: []
+      efficiencyJobs: [],
+      channelData: [],
+      aiInsights: [],
+      hasOptimizationSuggest: false
     };
   },
   mounted() {
     this.fetchAnalyticsData();
   },
   methods: {
-    // 🚀 建立数据请求通道（等待后端加入分析接口后即可生效）
+    handleTimeFilterChange(val) {
+      this.currentTimeFilter = val;
+      this.fetchAnalyticsData(); // 切换时间重新拉取数据
+    },
+
+    // 🚀 建立真实的数据请求通道
     async fetchAnalyticsData() {
       uni.showLoading({ title: '多维数据聚合中...' });
+      
       try {
-        // const res = await API.getCompanyAnalytics({ time: this.currentTimeFilter });
-        // this.kpiData = res.data.kpi;
-        // ... (如果后端接口未实现，将抛出异常并走下方兜底)
-        throw new Error('Analytics API not ready');
+        // 假设您的 api.js 中有 getSystemAnalytics 或对应的企业报表接口
+        const res = await API.getSystemAnalytics({ time: this.currentTimeFilter });
+        const data = res.data?.data || res.data || {};
+        
+        // 渲染真实数据 (这里需要根据您后端的实际返回结构调整)
+        if (data.kpi) this.kpiData = data.kpi;
+        if (data.funnel) this.funnelStages = data.funnel;
+        if (data.efficiency) this.efficiencyJobs = data.efficiency;
+        if (data.channels) this.channelData = data.channels;
+        if (data.insights) {
+          this.aiInsights = data.insights;
+          this.hasOptimizationSuggest = data.insights.some(i => i.type === 'warning');
+        }
+        
       } catch (error) {
-        // 兜底加载 UI 数据，防止白屏
-        this.loadMockAnalytics();
+        console.error('获取全景漏斗数据失败:', error);
+        uni.showToast({ title: '暂时无法获取报表数据', icon: 'none' });
+        // 🚀 接口失败时重置为空数组，让页面优雅地展示为空状态，而不是爆出假数据
+        this.funnelStages = [];
+        this.efficiencyJobs = [];
+        this.channelData = [];
+        this.aiInsights = [];
+        this.hasOptimizationSuggest = false;
+        // 重置 KPI 为横线
+        this.kpiData.forEach(k => { k.value = '--'; k.trendRate = '--'; });
       } finally {
         uni.hideLoading();
       }
     },
     
-    loadMockAnalytics() {
-      this.kpiData = [
-        { label: '职位总曝光', value: '45,280', icon: '👁️', trend: 'up', trendRate: '12%', trendType: 'good' },
-        { label: '收到新简历', value: '1,204', icon: '📥', trend: 'up', trendRate: '8%', trendType: 'good' },
-        { label: '进行中面试', value: '142', icon: '🗣️', trend: 'down', trendRate: '3%', trendType: 'warn' },
-        { label: '已发 Offer', value: '28', icon: '🎉', trend: 'up', trendRate: '15%', trendType: 'good' }
-      ];
-      this.funnelStages = [
-        { name: '职位曝光', icon: '📡', count: '45,280', percent: 100, color: 'linear-gradient(90deg, #3b82f6, #60a5fa)', convRate: 100 },
-        { name: '投递简历', icon: '📄', count: '1,204', percent: 65, color: 'linear-gradient(90deg, #8b5cf6, #a78bfa)', convRate: 2.6 },
-        { name: '初筛通过', icon: '✅', count: '315', percent: 40, color: 'linear-gradient(90deg, #06b6d4, #22d3ee)', convRate: 26.1 },
-        { name: '进入面试', icon: '📅', count: '142', percent: 25, color: 'linear-gradient(90deg, #10b981, #34d399)', convRate: 45.0 },
-        { name: '发放 Offer', icon: '🎉', count: '28', percent: 10, color: 'linear-gradient(90deg, #f59e0b, #fbbf24)', convRate: 19.7 }
-      ];
-      this.efficiencyJobs = [
-        { name: '资深前端工程师', score: 85, days: 12 },
-        { name: 'AI 算法专家', score: 60, days: 24 },
-        { name: '高级产品经理', score: 75, days: 15 }
-      ];
-    },
-    
     goBack() { uni.navigateBack(); },
+    
     exportReport() {
       uni.showLoading({ title: '正在生成 PDF 报告...', mask: true });
       setTimeout(() => {
@@ -256,6 +259,7 @@ export default {
         uni.showToast({ title: '导出成功', icon: 'success' });
       }, 1500);
     },
+    
     applyAIStrategy() {
       uni.showLoading({ title: 'AI 策略应用中...', mask: true });
       setTimeout(() => {
@@ -276,22 +280,21 @@ $accent: #06b6d4;
 $success: #10b981;
 $warning: #f59e0b;
 $danger: #ef4444;
+$info: #06b6d4; 
 $text-main: #f8fafc;
 $text-muted: #64748b;
 
 /* ==================== 极光背景 ==================== */
 .company-universe-web {
-  min-height: 100vh; width: 100vw; background-color: $bg-deep;
-  position: relative; overflow-x: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh; width: 100vw; background-color: $bg-deep; position: relative; overflow-x: hidden;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-.aurora-wrapper { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
-.orb { position: absolute; border-radius: 50%; filter: blur(140px); opacity: 0.35; mix-blend-mode: screen; animation: float 30s infinite alternate ease-in-out; }
-.orb-1 { width: 45vw; height: 45vw; background: radial-gradient(circle, rgba($primary,0.3) 0%, transparent 60%); top: -10%; left: 10%; }
-.orb-2 { width: 40vw; height: 40vw; background: radial-gradient(circle, rgba($secondary,0.2) 0%, transparent 60%); bottom: -10%; right: -5%; animation-delay: -5s; }
-.orb-3 { width: 35vw; height: 35vw; background: radial-gradient(circle, rgba($accent,0.15) 0%, transparent 60%); top: 40%; left: 50%; animation-delay: -10s; }
-.grid-overlay { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px); background-size: 40px 40px; z-index: 1; }
-.vignette-overlay { position: absolute; inset: 0; background: radial-gradient(circle at center, transparent 30%, rgba(3,3,8,0.95) 100%); z-index: 2; }
+.aurora-wrapper { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.gradient-orb { position: absolute; border-radius: 50%; filter: blur(140px); opacity: 0.4; mix-blend-mode: screen; animation: float 25s infinite alternate ease-in-out; }
+.orb-1 { width: 50vw; height: 50vw; background: radial-gradient(circle, rgba($primary,0.3) 0%, transparent 70%); top: -10%; left: -10%; }
+.orb-2 { width: 45vw; height: 45vw; background: radial-gradient(circle, rgba($secondary,0.25) 0%, transparent 70%); bottom: -20%; right: 5%; animation-delay: -5s; }
+.orb-3 { width: 40vw; height: 40vw; background: radial-gradient(circle, rgba($accent,0.15) 0%, transparent 70%); top: 30%; left: 30%; animation-delay: -10s; }
+.grid-overlay { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px); background-size: 40px 40px; }
 @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(4%, 6%) scale(1.1); } }
 
 /* ==================== 核心布局 ==================== */
@@ -300,7 +303,7 @@ $text-muted: #64748b;
 /* 顶部导航 */
 .glass-header { 
   height: 70px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px;
-  background: linear-gradient(180deg, rgba(3,3,8,0.9) 0%, transparent 100%); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(3,3,8,0.85) 0%, transparent 100%); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;
 }
 .header-left { display: flex; align-items: center; gap: 20px; }
 .icon-btn { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
@@ -317,6 +320,13 @@ $text-muted: #64748b;
 /* Dashboard 主体 */
 .dashboard-scroll { flex: 1; height: 0; }
 .dashboard-body { max-width: 1600px; margin: 0 auto; padding: 32px 40px; display: flex; flex-direction: column; gap: 32px; }
+
+/* 空状态占位 (新增) */
+.empty-state.mini {
+  padding: 40px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0.7;
+}
+.empty-state.mini .empty-icon { font-size: 32px; margin-bottom: 12px; filter: grayscale(100%); opacity: 0.5; }
+.empty-state.mini .empty-text { font-size: 13px; color: $text-muted; }
 
 /* 公用卡片底座 */
 .ultra-glass-card {
@@ -339,6 +349,7 @@ $text-muted: #64748b;
 .trend-badge { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 8px; }
 .trend-badge.good { color: $success; background: rgba($success, 0.1); }
 .trend-badge.warn { color: $warning; background: rgba($warning, 0.1); }
+.trend-badge.neutral { color: $text-muted; background: rgba(255,255,255, 0.05); }
 
 .kpi-content { display: flex; flex-direction: column; }
 .kpi-value { font-size: 32px; font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 4px; letter-spacing: 0.5px; }
@@ -401,8 +412,9 @@ $text-muted: #64748b;
 .msg-text { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .m-title { font-size: 14px; font-weight: 600; color: #fff; }
 .m-desc { font-size: 13px; color: #cbd5e1; line-height: 1.6; }
-.highlight-warn { color: $warning; font-weight: 700; }
-.highlight-succ { color: $success; font-weight: 700; }
+/* 处理从富文本传递过来的高亮类名 */
+:deep(.highlight-warn) { color: $warning; font-weight: 700; }
+:deep(.highlight-succ) { color: $success; font-weight: 700; }
 
 .action-card { background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.15); border-radius: 14px; padding: 16px; text-align: center; }
 .ac-title { font-size: 13px; color: #cbd5e1; }
@@ -414,9 +426,9 @@ $text-muted: #64748b;
 /* 效率进度条 */
 .efficiency-list { display: flex; flex-direction: column; gap: 16px; margin-top: 20px; }
 .eff-item { display: flex; align-items: center; gap: 16px; }
-.eff-name { font-size: 13px; color: #cbd5e1; width: 120px; flex-shrink: 0; }
+.eff-name { font-size: 13px; color: #cbd5e1; width: 120px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .eff-bar-bg { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
-.eff-bar-fill { height: 100%; background: linear-gradient(90deg, $secondary, $primary); border-radius: 3px; }
+.eff-bar-fill { height: 100%; background: linear-gradient(90deg, $secondary, $primary); border-radius: 3px; transition: width 1s ease;}
 .eff-score { font-size: 13px; font-weight: 600; color: #fff; width: 60px; text-align: right; }
 
 /* 渠道占比 */

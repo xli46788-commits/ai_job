@@ -10,7 +10,9 @@
     <view class="workspace-layout">
       <view class="glass-header fade-in-down">
         <view class="header-left">
-          <view class="logo-box admin-theme"><text class="logo-icon">👁️</text></view>
+          <view class="logo-box admin-theme">
+            <text class="logo-icon">👁️</text>
+          </view>
           <view class="title-box">
             <text class="title">AI 职引未来 · 总控中心</text>
             <text class="subtitle">System Overlord</text>
@@ -25,6 +27,7 @@
       </view>
       
       <view class="workspace-body">
+        
         <view class="left-sidebar-panel fade-in-up delay-1">
           <view class="ultra-glass-card sidebar-card h-full">
             <view class="nav-menu">
@@ -35,7 +38,9 @@
               <view class="menu-item hover-lift" @click="goTo('audit')">
                 <text class="m-icon">🛡️</text>
                 <text class="m-text">内容安全审核</text>
-                <view class="badge danger">{{ stats.pendingAudit || 12 }}</view>
+                <view class="badge danger" v-if="stats.pendingAudit > 0">
+                  {{ stats.pendingAudit > 99 ? '99+' : stats.pendingAudit }}
+                </view>
               </view>
               <view class="menu-item hover-lift" @click="goTo('users')">
                 <text class="m-icon">👥</text>
@@ -91,18 +96,23 @@
                   </view>
                   <view class="mc-body">
                     <text class="mc-value">{{ stats.aiCalls }}</text>
-                    <view class="mc-trend up"><text>↑</text> 34% 较上周</view>
+                    <view class="mc-trend" :class="stats.aiTrendDirection || 'up'" v-if="stats.aiTrend">
+                      <text>{{ stats.aiTrendDirection === 'down' ? '↓' : '↑' }}</text> {{ stats.aiTrend }}
+                    </view>
+                    <view class="mc-trend neutral" v-else>计算中...</view>
                   </view>
                 </view>
               </view>
 
               <view class="monitor-grid">
+                
                 <view class="ultra-glass-card monitor-card">
                   <view class="card-title-bar">
                     <text class="bar-icon">🚨</text>
                     <text class="bar-title">最新风控拦截预警</text>
                   </view>
-                  <view class="alert-list">
+                  
+                  <view class="alert-list" v-if="alerts.length > 0">
                     <view class="alert-item" v-for="(alert, index) in alerts" :key="index">
                       <view class="ai-status">{{ alert.status }}</view>
                       <view class="ai-info">
@@ -112,6 +122,9 @@
                       <view class="ghost-btn outline micro danger-theme" @click="goTo('audit')">去处理</view>
                     </view>
                   </view>
+                  <view class="empty-state" v-else>
+                    <text class="e-text">✓ 当前系统暂无风控预警</text>
+                  </view>
                 </view>
 
                 <view class="ultra-glass-card monitor-card">
@@ -119,23 +132,23 @@
                     <text class="bar-icon">🖥️</text>
                     <text class="bar-title">AI 大模型节点监控</text>
                   </view>
-                  <view class="server-list">
-                    <view class="server-item">
+                  
+                  <view class="server-list" v-if="serverNodes.length > 0">
+                    <view class="server-item" v-for="(node, index) in serverNodes" :key="index">
                       <view class="si-info">
-                        <text class="si-name">简历解析引擎 (Node-01)</text>
-                        <text class="si-load">负载 45%</text>
+                        <text class="si-name">{{ node.name }}</text>
+                        <text class="si-load" :class="getLoadClass(node.load)">负载 {{ node.load }}%</text>
                       </view>
-                      <view class="progress-bg"><view class="progress-fill" style="width: 45%; background: #10b981;"></view></view>
-                    </view>
-                    <view class="server-item">
-                      <view class="si-info">
-                        <text class="si-name">模拟面试语音引擎 (Node-02)</text>
-                        <text class="si-load warning">负载 82%</text>
+                      <view class="progress-bg">
+                        <view class="progress-fill" :style="{ width: node.load + '%', background: getLoadColor(node.load) }"></view>
                       </view>
-                      <view class="progress-bg"><view class="progress-fill" style="width: 82%; background: #f59e0b;"></view></view>
                     </view>
                   </view>
+                  <view class="empty-state" v-else>
+                    <text class="e-text">暂无节点监控数据</text>
+                  </view>
                 </view>
+
               </view>
 
             </view>
@@ -154,13 +167,18 @@ import { API } from '../../utils/api.js';
 export default {
   data() {
     return {
+      // 初始化安全占位符，不渲染假数据
       stats: {
-        totalUsers: 0,
-        companies: 0,
+        totalUsers: '--',
+        companies: '--',
         pendingAudit: 0,
-        aiCalls: '0'
+        aiCalls: '--',
+        aiTrend: '',
+        aiTrendDirection: 'up'
       },
-      alerts: []
+      alerts: [],
+      // 🚀 新增动态节点数组
+      serverNodes: []
     }
   },
   mounted() {
@@ -172,13 +190,28 @@ export default {
       try {
         const res = await API.getSystemAnalytics();
         if (res.data) {
-          this.stats = res.data.stats;
-          this.alerts = res.data.alerts;
+          // 适配后端数据
+          this.stats = { ...this.stats, ...res.data.stats };
+          this.alerts = res.data.alerts || [];
+          this.serverNodes = res.data.serverNodes || [];
         }
       } catch (error) {
         console.error("获取大盘数据失败", error);
       }
     },
+    
+    // 🚀 根据真实负载动态计算颜色
+    getLoadClass(load) {
+      if (load >= 90) return 'danger';
+      if (load >= 70) return 'warning';
+      return ''; // 默认 success 颜色
+    },
+    getLoadColor(load) {
+      if (load >= 90) return '#ef4444'; // red
+      if (load >= 70) return '#f59e0b'; // amber
+      return '#10b981'; // emerald
+    },
+
     goTo(path) {
       if (path === 'home') uni.redirectTo({ url: '/pages/admin/home' });
       else if (path === 'audit') uni.redirectTo({ url: '/pages/admin/audit' });
@@ -205,7 +238,7 @@ export default {
 </script>
 
 <style lang="scss" scoped>
-/* 这里的 CSS 代码请保持与您上一条消息中的完全一致，不需要修改任何样式 */
+/* ==================== 宇宙色彩体系 (Admin 专属深色权威主题) ==================== */
 $bg-deep: #020205; 
 $primary: #3b82f6;
 $primary-light: #60a5fa;   
@@ -277,6 +310,8 @@ $text-muted: #94a3b8;
 .mc-sub { font-size: 12px; color: $text-muted; margin-top: 4px; }
 .mc-trend { font-size: 12px; display: flex; align-items: center; gap: 4px; }
 .mc-trend.up { color: $success; }
+.mc-trend.down { color: $danger; }
+.mc-trend.neutral { color: $text-muted; }
 
 .monitor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 .monitor-card { padding: 24px; }
@@ -297,8 +332,12 @@ $text-muted: #94a3b8;
 .si-name { color: #cbd5e1; }
 .si-load { color: $success; font-weight: 600; }
 .si-load.warning { color: $warning; }
+.si-load.danger { color: $danger; }
 .progress-bg { width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 3px; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+
+.empty-state { padding: 40px 0; text-align: center; opacity: 0.6; }
+.e-text { font-size: 13px; color: $text-muted; }
 
 .ghost-btn.outline { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
 .ghost-btn.outline.micro { height: 28px; padding: 0 12px; font-size: 12px; border-radius: 6px; }

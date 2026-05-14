@@ -118,7 +118,7 @@
                         <text class="l-icon">📍</text>
                         <text class="l-text">{{ job.location }}</text>
                       </view>
-                      <view class="j-skills">
+                      <view class="j-skills" v-if="job.tags.length > 0">
                         <view v-for="(tag, tagIndex) in job.tags" :key="tagIndex" class="neon-tag ghost">
                           {{ tag }}
                         </view>
@@ -155,7 +155,7 @@
                 <view class="insight-block primary">
                   <view class="insight-title">💡 今日求职洞察</view>
                   <view class="message-text">
-                    根据大模型全网分析，近期 <text class="highlight-text">AIGC</text> 与 <text class="highlight-text">大模型应用</text> 相关的岗位薪资溢价高达 30%。建议您使用左侧功能丰富简历技能。
+                    {{ dailyInsight }}
                   </view>
                 </view>
 
@@ -213,7 +213,9 @@ export default {
     return {
       userName: '同学',
       recommendedJobs: [], 
-      isLoading: false
+      isLoading: false,
+      // 🚀 提取静态假数据到状态中，以后随时可以接后端动态接口
+      dailyInsight: '完善您的 AI 数字分身，能够提升推荐准确率，并为您解锁更多与您技能相匹配的隐藏高潜岗位。'
     }
   },
   onShow() {
@@ -245,15 +247,17 @@ export default {
 
         if (records && records.length > 0) {
           this.recommendedJobs = records.map(item => {
-            const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : ['急招'];
+            // 🚀 剔除假关键词兜底
+            const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : [];
             const jobData = item.job || {};
             
             return {
               // 🚀 万能 ID 提取器
               id: (typeof item.job === 'string' ? item.job : null) || jobData?.job_id || jobData?.id || item.job_id || item.id,
               resume_id: item.resume?.resume_id || item.resume?.id || item.resume_id, 
-              title: jobData.job_name || item.job_name || '优质职位',
-              company: jobData.company?.company_name || jobData.company?.username || item.company_name || '直招企业', 
+              // 🚀 剔除写死的兜底名称
+              title: jobData.job_name || item.job_name || '未知岗位',
+              company: jobData.company?.company_name || jobData.company?.username || item.company_name || '未知企业', 
               salary: jobData.salary || item.salary || '面议',
               type: jobData.experience || item.experience || '经验不限',
               location: jobData.job_location || item.job_location || '全国',
@@ -311,10 +315,8 @@ export default {
         confirmColor: '#ef4444',
         success: (res) => {
           if (res.confirm) {
-            uni.removeStorageSync('token');
-            uni.removeStorageSync('user_role');
-            uni.removeStorageSync('user_info');
-            uni.removeStorageSync('current_resume_id'); 
+            // 清理缓存
+            uni.clearStorageSync();
             uni.reLaunch({ url: '/pages/auth/login' });
           }
         }
