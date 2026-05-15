@@ -154,12 +154,34 @@ export default {
         });
 
         // 存储 Token 
-        uni.setStorageSync('token', res.access || res.token);
+        uni.setStorageSync('token', res.access || res.token || res.data?.access || res.data?.token);
         
         // 存储后端的真实角色
-        const userRole = res.role; 
+        const userRole = res.role || res.data?.role || this.selectedRole; 
         uni.setStorageSync('user_role', userRole);
         uni.setStorageSync('user_info', { username: this.form.username });
+
+        // ================= 👇 新增：“恢复记忆”逻辑 👇 =================
+        // 如果是学生端登录，立刻去后端查一下他以前有没有传过简历
+        if (userRole !== 'admin' && userRole !== 'company') {
+          try {
+            const resumeRes = await API.getResumes();
+            const records = resumeRes.data?.results || resumeRes.data || resumeRes.results || resumeRes || [];
+            
+            if (records.length > 0) {
+              const latestResume = records[0];
+              const resumeId = latestResume.resume_id || latestResume.id;
+              
+              if (resumeId) {
+                uni.setStorageSync('current_resume_id', resumeId);
+                console.log("✅ 登录成功，已自动恢复历史简历记录：", resumeId);
+              }
+            }
+          } catch (e) {
+            console.log("获取历史简历状态失败，用户可能是新注册的暂无简历");
+          }
+        }
+        // ================= 👆 新增结束 👆 =================
         
         uni.hideLoading();
         uni.showToast({ title: '登录成功', icon: 'success' });
@@ -174,6 +196,7 @@ export default {
       } catch (error) {
         uni.hideLoading();
         console.error("登录失败", error);
+        uni.showToast({ title: '登录失败，请检查账号密码', icon: 'none' });
       }
     },
     
@@ -209,6 +232,7 @@ export default {
         
       } catch (error) {
         uni.hideLoading();
+        uni.showToast({ title: '注册失败，账号可能已存在', icon: 'none' });
       }
     },
     

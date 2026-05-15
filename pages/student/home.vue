@@ -26,7 +26,7 @@
 
         <view class="header-right">
           <view class="nav-item" @click="goToCommunity">职场情报局</view>
-          <view class="nav-item" @click="goToMatchResult">投递记录</view>
+          <view class="nav-item" @click="goToDeliveries">投递记录</view>
           <view class="nav-item active">发现机会</view>
           <view class="profile-btn hover-lift" @click="goToProfile">
             <view class="profile-avatar">
@@ -224,6 +224,7 @@ export default {
     if (userInfo && userInfo.username) {
       this.userName = userInfo.username;
     }
+	this.checkExistingResume();
     this.fetchRecommendedJobs();
   },
   mounted() {
@@ -330,6 +331,35 @@ export default {
     goToAIPolish() { uni.navigateTo({ url: '/pages/student/ai-polish' }); },
     goToMatchResult() { uni.navigateTo({ url: '/pages/student/match-result' }); },
     
+	// 🚀 新增：静默检查数据库中是否已有历史简历
+	    async checkExistingResume() {
+	      // 如果本地缓存已经有简历ID了，就不用麻烦后端了
+	      if (uni.getStorageSync('current_resume_id')) {
+	        return;
+	      }
+	      
+	      try {
+	        // 调用 api.js 中的获取简历列表接口
+	        const res = await API.getResumes();
+	        const records = res.data?.results || res.data || res.results || res || [];
+	        
+	        // 如果后端返回了简历列表说明以前传过
+	        if (records.length > 0) {
+	          // 取最新的一份简历（通常是第一个）的 ID
+	          const latestResume = records[0];
+	          const resumeId = latestResume.resume_id || latestResume.id;
+	          
+	          if (resumeId) {
+	            // 悄悄存入本地缓存，接下来的匹配就能直接用了！
+	            uni.setStorageSync('current_resume_id', resumeId);
+	            console.log("✅ 已自动恢复历史简历记录：", resumeId);
+	          }
+	        }
+	      } catch (error) {
+	        console.error("检查历史简历状态失败:", error);
+	      }
+	    },
+	goToDeliveries() { uni.navigateTo({ url: '/pages/student/profile' }); }, // 新增这行	
     // 🚀 安全跳转至详情页逻辑
     viewJobDetail(job) { 
       const targetId = job.id || job.job_id;

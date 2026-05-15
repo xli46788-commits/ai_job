@@ -11,15 +11,15 @@
     <view class="workspace-layout">
       <view class="glass-header fade-in-down">
         <view class="header-left">
-          <view class="icon-btn" @click="goBack" title="返回">
+          <view class="icon-btn" @click="goBack" title="返回主页">
             <text class="arrow-left">←</text>
           </view>
-          <text class="title">构建数字分身</text>
+          <text class="title">个人中心</text>
         </view>
         <view class="header-right">
-          <view class="status-badge" :class="parseComplete ? 'success' : (isParsing ? 'processing' : 'standby')">
-            <text class="dot pulse"></text> 
-            {{ parseComplete ? '解析完成' : (isParsing ? '引擎运转中' : '等待上传') }}
+          <view class="logout-btn hover-lift" @click="logout">
+            <text class="logout-icon">🚪</text>
+            <text>退出登录</text>
           </view>
         </view>
       </view>
@@ -27,146 +27,210 @@
       <view class="workspace-body">
         
         <view class="left-control-panel fade-in-up delay-1">
-          
-          <view class="upload-zone" v-if="!uploadedFile" @click="selectFile">
-            <view class="upload-zone-inner">
-              <view class="upload-icon-wrapper">
-                <view class="icon-circle">
-                  <text class="upload-icon">📁</text>
+          <scroll-view class="left-scroll custom-scrollbar" scroll-y>
+            <view class="left-content-inner">
+              
+              <view class="ultra-glass-card user-profile-card">
+                <view class="avatar-wrapper">
+                  <view class="avatar-ring"></view>
+                  <view class="avatar-glow"></view>
+                  <text class="avatar-icon">👤</text>
                 </view>
-                <view class="pulse-ring"></view>
+                <view class="user-details">
+                  <text class="user-name">{{ userInfo.username || '学生用户' }}</text>
+                  <view class="name-line"></view>
+                  <view class="user-id-box">
+                    <text class="id-dot pulse"></text>
+                    <text>ID: {{ userInfo.id || '--' }}</text>
+                  </view>
+                </view>
               </view>
-              <text class="upload-title">点击上传你的简历</text>
-              <text class="upload-desc">支持 PDF、Word 格式，最大 20MB</text>
-              <view class="liquid-btn micro mt-20">
-                <text class="btn-txt">选择文件</text>
-              </view>
-            </view>
-            <view class="upload-tips">
-              <view class="tip-item"><text class="tip-icon">✨</text><text>AI 智能提取关键信息</text></view>
-              <view class="tip-item"><text class="tip-icon">🔒</text><text>严格保护个人隐私数据</text></view>
-            </view>
-          </view>
-          
-          <view class="file-status-card ultra-glass-card" v-else>
-            <view class="file-header">
-              <view class="file-type-icon">📄</view>
-              <view class="file-info">
-                <text class="file-name" :title="uploadedFile.name">{{ uploadedFile.name }}</text>
-                <text class="file-meta">{{ formatFileSize(uploadedFile.size) }} · {{ getCurrentTime() }}</text>
-              </view>
-              <view class="reupload-btn" @click="reupload" v-if="!isParsing && !parseComplete" title="重新上传">
-                <text>🔄</text>
-              </view>
-            </view>
 
-            <view class="action-row" v-if="!isParsing && !parseComplete">
-              <view class="liquid-btn fill-width" @click="startParsing">
-                <text class="btn-txt">🚀 唤醒 AI 引擎开始解析</text>
+              <view class="ultra-glass-card asset-card hover-lift" @click="goToRecharge">
+                <view class="asset-shine"></view>
+                <view class="asset-header">
+                  <view class="asset-icon-box">
+                    <text>💎</text>
+                  </view>
+                  <text class="asset-label">当前可用积分</text>
+                </view>
+                <view class="asset-body">
+                  <text class="asset-amount">{{ userInfo.points || 0 }}</text>
+                  <view class="asset-action">
+                    <text>积分明细</text>
+                    <text class="arr">›</text>
+                  </view>
+                </view>
               </view>
-            </view>
+              
+              <view class="ultra-glass-card nav-menu-card">
+                <view 
+                  v-for="(tab, index) in tabs" 
+                  :key="index"
+                  class="nav-menu-item"
+                  :class="{ active: activeTab === tab.value }"
+                  @click="switchTab(tab.value)"
+                >
+                  <view class="menu-icon-box" :class="{ 'active-glow': activeTab === tab.value }">
+                    <text>{{ tab.icon }}</text>
+                  </view>
+                  <text class="menu-label">{{ tab.label }}</text>
+                  <view class="menu-indicator" v-if="activeTab === tab.value"></view>
+                </view>
+              </view>
 
-            <view class="parsing-container" v-if="isParsing || parseComplete">
-              <view class="progress-header">
-                <text class="progress-label">{{ parseComplete ? '解析成功' : 'AI 深度分析中...' }}</text>
-                <text class="progress-value" :class="{ 'success-text': parseComplete }">{{ progress }}%</text>
-              </view>
-              
-              <view class="progress-bar-bg">
-                <view class="progress-bar-fill" :style="{ width: progress + '%' }">
-                  <view class="progress-shine" v-if="!parseComplete"></view>
-                </view>
-              </view>
-              
-              <view class="parsing-steps" v-if="!parseComplete">
-                <view v-for="(step, index) in parsingSteps" :key="index" class="step-item" :class="{ active: progress >= step.progress, completed: progress > step.progress }">
-                  <view class="step-icon">{{ step.icon }}</view>
-                  <text class="step-text">{{ step.text }}</text>
-                </view>
-              </view>
-              
-              <view class="success-message" v-if="parseComplete">
-                <text>🎉 简历基因提取完毕，请在右侧核对信息。</text>
-                <view class="ghost-btn outline fill-width mt-16" @click="reupload">重新上传</view>
-              </view>
             </view>
-          </view>
-          
+          </scroll-view>
         </view>
 
-        <view class="right-preview-panel fade-in-left delay-2">
-          <view class="ultra-glass-card preview-card h-full">
-            <scroll-view class="preview-scroll custom-scrollbar" scroll-y>
-              
-              <view class="preview-empty-state" v-if="!isParsing && !parseComplete">
-                <view class="empty-icon-box">
-                  <text class="e-icon pulse">🧬</text>
-                </view>
-                <text class="empty-title">等待注入简历基因</text>
-                <text class="empty-desc">在左侧上传简历后，AI Copilot 将为你生成结构化的数字分身报告，并基于此为你匹配最契合的岗位。</text>
-              </view>
+        <view class="right-content-panel fade-in-left delay-2">
+          <view class="ultra-glass-card content-card h-full">
+            
+            <view class="content-header">
+              <text class="content-title">{{ currentTabLabel }}</text>
+              <text class="content-subtitle" v-if="activeTab === 'applications'">实时追踪您的求职进度</text>
+              <text class="content-subtitle" v-if="activeTab === 'points'">查看积分流水与消费记录</text>
+            </view>
 
-              <view class="skeleton-container" v-if="isParsing">
-                <view class="skeleton-header">
-                  <view class="s-avatar shimmer"></view>
-                  <view class="s-lines">
-                    <view class="s-line title shimmer"></view>
-                    <view class="s-line shimmer"></view>
-                  </view>
-                </view>
-                <view class="s-block shimmer mt-32"></view>
-                <view class="s-line shimmer mt-16"></view>
-                <view class="s-line short shimmer mt-10"></view>
+            <scroll-view class="detail-scroll custom-scrollbar" scroll-y>
+              <view class="detail-inner">
                 
-                <view class="s-block shimmer mt-32"></view>
-                <view class="s-tags mt-16">
-                  <view class="s-tag shimmer" v-for="i in 5" :key="i"></view>
-                </view>
-              </view>
-
-              <view class="parsed-result-content" v-if="parseComplete">
-                <view class="result-header fade-in-up">
-                  <view class="r-avatar">
-                    <text>👤</text>
-                    <view class="r-avatar-ring"></view>
+                <view v-if="activeTab === 'applications'" class="tab-module fade-in-up">
+                  <view v-if="applications.length === 0" class="empty-state">
+                    <text class="empty-icon">📭</text>
+                    <text class="empty-title">暂无投递记录</text>
+                    <text class="empty-desc">去“发现机会”看看有没有心仪的岗位吧</text>
                   </view>
-                  <view class="r-base-info">
-                    <text class="r-name">{{ resumeInfo.name }}</text>
-                    <text class="r-sub">{{ resumeInfo.education }} · {{ resumeInfo.major }}</text>
-                  </view>
-                </view>
-
-                <view class="info-grid fade-in-up delay-1">
-                  <view class="glass-block">
-                    <view class="block-title"><text class="b-icon">🎯</text>求职意向</view>
-                    <view class="info-row"><text class="i-label">目标岗位</text><text class="i-val highlight">{{ resumeInfo.target }}</text></view>
-                    <view class="info-row"><text class="i-label">经验年限</text><text class="i-val">{{ resumeInfo.experience }}</text></view>
-                  </view>
-
-                  <view class="glass-block">
-                    <view class="block-title"><text class="b-icon">🧬</text>技能图谱</view>
-                    <view class="skill-tags">
-                      <view v-for="(skill, index) in resumeInfo.skills" :key="index" class="neon-tag active">
-                        {{ skill }}
+                  
+                  <view v-else class="list-grid">
+                    <view v-for="(app, index) in applications" :key="index" class="data-card hover-lift" :style="`animation-delay: ${index * 0.05}s;`">
+                      <view class="card-top">
+                        <text class="d-title">{{ app.jobTitle }}</text>
+                        <view class="status-badge" :class="app.statusStyle">
+                          <text class="dot"></text>{{ app.statusText }}
+                        </view>
+                      </view>
+                      <view class="card-bottom">
+                        <view class="d-meta"><text class="m-icon">🏢</text>{{ app.company }}</view>
+                        <view class="d-meta"><text class="m-icon">🕐</text>{{ app.time }}</view>
                       </view>
                     </view>
                   </view>
                 </view>
-
-                <view class="result-actions fade-in-up delay-2">
-                  <view class="action-banner">
-                    <text class="banner-icon">✨</text>
-                    <view class="banner-text">
-                      <text class="b-title">简历已就绪，立即匹配机会！</text>
-                      <text class="b-desc">基于提取出的能力模型，我们为您找到了高匹配度岗位。</text>
+                
+                <view v-if="activeTab === 'favorites'" class="tab-module fade-in-up">
+                  <view v-if="favorites.length === 0" class="empty-state">
+                    <text class="empty-icon">❤️</text>
+                    <text class="empty-title">暂无收藏岗位</text>
+                    <text class="empty-desc">遇到感兴趣的岗位，记得点击收藏哦</text>
+                  </view>
+                  
+                  <view v-else class="list-grid">
+                    <view v-for="(job, index) in favorites" :key="index" class="data-card hover-lift" @click="viewJobDetail(job)" :style="`animation-delay: ${index * 0.05}s;`">
+                      <view class="card-top">
+                        <text class="d-title">{{ job.title }}</text>
+                        <text class="d-salary">{{ job.salary }}</text>
+                      </view>
+                      <view class="d-company mb-12"><text class="c-icon">🏢</text>{{ job.company }}</view>
+                      <view class="d-tags mb-16">
+                        <text v-for="(tag, idx) in job.tags" :key="idx" class="neon-tag ghost">{{ tag }}</text>
+                      </view>
+                      <view class="card-actions border-top">
+                        <view class="ghost-btn outline danger-theme micro" @click.stop="unfavorite(job)">
+                          <text>取消收藏</text>
+                        </view>
+                      </view>
                     </view>
                   </view>
-                  <view class="liquid-btn large fill-width mt-16" @click="goToMatchResult">
-                    <text class="btn-txt">查看智能匹配结果 ➔</text>
+                </view>
+                
+                <view v-if="activeTab === 'resumes'" class="tab-module fade-in-up">
+                  <view class="action-bar mb-24">
+                    <view class="liquid-btn" @click="goToUploadResume">
+                      <text class="btn-txt">📤 上传新简历</text>
+                    </view>
                   </view>
+
+                  <view v-if="resumes.length === 0" class="empty-state">
+                    <text class="empty-icon">📄</text>
+                    <text class="empty-title">简历库空空如也</text>
+                    <text class="empty-desc">上传简历，唤醒 AI Copilot 为你深度分析</text>
+                  </view>
+                  
+                  <view v-else class="list-grid">
+                    <view v-for="(resume, index) in resumes" :key="index" class="data-card resume-card hover-lift" :style="`animation-delay: ${index * 0.05}s;`">
+                      <view class="resume-icon-box">📄</view>
+                      <view class="resume-info">
+                        <text class="r-name">{{ resume.name }}</text>
+                        <view class="r-meta">
+                          <text class="divider" v-if="resume.size">·</text>
+                          <text>{{ resume.uploadDate }}</text>
+                        </view>
+                      </view>
+                      <view class="delete-action" @click.stop="deleteResume(resume)" title="删除文件">
+                        <text>×</text>
+                      </view>
+                    </view>
+                  </view>
+                </view>
+                
+                <view v-if="activeTab === 'points'" class="tab-module fade-in-up">
+                  
+                  <view class="points-guide-panel mb-32">
+                    <text class="panel-sm-title">积分赋能矩阵</text>
+                    <view class="guide-grid">
+                      <view class="guide-item">
+                        <view class="g-icon theme-purple">✨</view>
+                        <view class="g-text">
+                          <text class="g-title">AI 简历专家润色</text>
+                          <text class="g-cost">50 积分 / 次</text>
+                        </view>
+                      </view>
+                      <view class="guide-item">
+                        <view class="g-icon theme-cyan">🎯</view>
+                        <view class="g-text">
+                          <text class="g-title">全景人岗匹配分析</text>
+                          <text class="g-cost">100 积分 / 次</text>
+                        </view>
+                      </view>
+                      <view class="guide-item">
+                        <view class="g-icon theme-green">🚀</view>
+                        <view class="g-text">
+                          <text class="g-title">企业库优先极速推荐</text>
+                          <text class="g-cost">200 积分 / 周</text>
+                        </view>
+                      </view>
+                    </view>
+                  </view>
+                  
+                  <view class="history-panel">
+                    <text class="panel-sm-title">近期流水记录</text>
+                    <view v-if="pointRecords.length === 0" class="empty-state" style="padding: 40px 0;">
+                      <text class="empty-icon" style="font-size: 40px;">💳</text>
+                      <text class="empty-desc">暂无积分变动记录</text>
+                    </view>
+                    <view class="history-list" v-else>
+                      <view v-for="(record, index) in pointRecords" :key="record.id" class="history-item hover-lift" :class="record.type" :style="`animation-delay: ${index * 0.05}s;`">
+                        <view class="h-icon">
+                          <text v-if="record.type === 'earn'">💰</text>
+                          <text v-else>💳</text>
+                        </view>
+                        <view class="h-info">
+                          <text class="h-desc">{{ record.description }}</text>
+                          <text class="h-date">{{ record.date }}</text>
+                        </view>
+                        <view class="h-amount" :class="record.type">
+                          <text class="sign">{{ record.type === 'earn' ? '+' : '-' }}</text>
+                          <text class="val">{{ record.amount }}</text>
+                        </view>
+                      </view>
+                    </view>
+                  </view>
+
                 </view>
 
               </view>
+              <view class="safe-area-bottom"></view>
             </scroll-view>
           </view>
         </view>
@@ -177,181 +241,230 @@
 </template>
 
 <script>
-// 🚀 引入 API 接口和基础地址
-import { BASE_URL } from '../../utils/api.js';
+// 🚀 引入真实接口
+import { API } from '../../utils/api.js';
 
 export default {
   data() {
     return {
-      uploadedFile: null,
-      isParsing: false,
-      parseComplete: false,
-      progress: 0,
-      parsingSteps: [
-        { icon: '📄', text: '抽取文档内容', progress: 20 },
-        { icon: '🧠', text: '大模型语义理解', progress: 60 },
-        { icon: '🏷️', text: '生成技能图谱', progress: 90 }
+      activeTab: 'applications',
+      tabs: [
+        { label: '投递进度追踪', value: 'applications', icon: '📋' },
+        { label: '我的收藏储备', value: 'favorites', icon: '❤️' },
+        { label: '简历资产管理', value: 'resumes', icon: '📄' },
+        { label: '积分与权益', value: 'points', icon: '💎' }
       ],
-      // 🚀 置空初始状态，拒绝假数据占位
-      resumeInfo: {
-        name: '', major: '', education: '',
-        experience: '', target: '',
-        skills: []
-      }
+      // 🚀 所有列表初始为空，拒绝假数据
+      userInfo: { username: '', id: '', points: 0 },
+      applications: [],
+      favorites: [],
+      resumes: [],
+      pointRecords: []
     }
   },
+  computed: {
+    currentTabLabel() {
+      const tab = this.tabs.find(t => t.value === this.activeTab);
+      return tab ? tab.label : '';
+    }
+  },
+  onShow() {
+    this.initData();
+  },
+  mounted() {
+    this.initData();
+  },
   methods: {
-    selectFile() {
-      // 真实唤起设备文件选择器
-      uni.chooseFile({
-        count: 1,
-        extension: ['.pdf', '.doc', '.docx'],
-        success: (res) => {
-          const file = res.tempFiles[0];
-          this.uploadedFile = {
-            name: file.name || '未命名简历',
-            size: file.size,
-            path: file.path || file.tempFilePath
-          };
-          // 选择新文件时，重置所有状态
-          this.isParsing = false;
-          this.parseComplete = false;
-          this.progress = 0;
-        },
-        fail: (err) => {
-          // 🚀 删除了写死的假简历逻辑。用户取消或报错时直接终止。
-          console.log("选择文件取消/失败:", err);
-        }
-      });
+    async initData() {
+      // 1. 本地缓存用户名兜底
+      const localUser = uni.getStorageSync('user_info');
+      if (localUser) this.userInfo.username = localUser.username;
+
+      // 2. 加载数据
+      await this.fetchUserProfile();
+      this.loadTabData(this.activeTab);
+    },
+    
+    switchTab(tabValue) {
+      if (this.activeTab === tabValue) return;
+      this.activeTab = tabValue;
+      this.loadTabData(tabValue);
     },
 
-    // 🚀 核心联调：真实的文件上传与解析流程
-    startParsing() {
-      if (!this.uploadedFile) return;
+    // 根据当前 Tab 动态拉取对应数据
+    async loadTabData(tab) {
+      uni.showLoading({ title: '加载中...', mask: true });
+      try {
+        if (tab === 'applications') await this.fetchApplications();
+        else if (tab === 'favorites') await this.fetchFavorites();
+        else if (tab === 'resumes') await this.fetchResumes();
+        else if (tab === 'points') await this.fetchPointRecords();
+      } finally {
+        uni.hideLoading();
+      }
+    },
 
-      this.isParsing = true;
-      this.progress = 0;
-      this.parseComplete = false;
-
-      // 1. UX进度条体验优化：模拟解析进度走到 90%，掩盖 AI 大模型的响应延迟
-      const timer = setInterval(() => {
-        if (this.progress < 90) {
-          this.progress += Math.floor(Math.random() * 3) + 1;
+    // 🚀 获取用户基础信息（包括积分）
+    async fetchUserProfile() {
+      try {
+        const res = await API.getUserProfile();
+        const data = res.data || res;
+        if (data) {
+          this.userInfo = {
+            username: data.username || this.userInfo.username || '未设置昵称',
+            id: data.id || data.user_id || '--',
+            points: data.points || 0
+          };
         }
-      }, 250);
+      } catch (e) { console.error("获取个人信息失败", e); }
+    },
 
-      // 2. 拿到用户的合法身份证 (Token)
-      const token = uni.getStorageSync('token');
+    // 🚀 获取投递记录
+    async fetchApplications() {
+      try {
+        const res = await API.getDeliveries();
+        const records = res.data?.results || res.data || [];
+        
+        // 状态字典映射
+        const statusMap = {
+          1: { text: '企业待处理', style: 'pending' },
+          2: { text: '企业已查看', style: 'interview' },
+          3: { text: '进入面试流程', style: 'interview' },
+          4: { text: '流程结束', style: 'rejected' }
+        };
 
-      // 3. 真实发起 Multipart/form-data 文件上传
-      uni.uploadFile({
-        url: `${BASE_URL}/resumes/`, 
-        filePath: this.uploadedFile.path,
-        name: 'resume_file', 
-        formData: {
-          'resume_name': this.uploadedFile.name
-        },
-        header: {
-          'Authorization': `Bearer ${token}` 
-        },
-        success: (uploadRes) => {
-          clearInterval(timer);
-          if (uploadRes.statusCode === 201 || uploadRes.statusCode === 200) {
-            try {
-              const resData = JSON.parse(uploadRes.data);
-              // 🚀 成功解析，渲染真实数据
-              this.renderParsedData(resData);
-            } catch (e) {
-              this.handleUploadFail("引擎返回数据格式异常");
-            }
-          } else {
-            console.error("【后端拒绝了上传】状态码:", uploadRes.statusCode, uploadRes.data);
-            this.handleUploadFail("AI 引擎忙，请稍后再试");
+        this.applications = records.map(item => {
+          const statusObj = statusMap[item.delivery_status] || { text: '状态未知', style: 'rejected' };
+          return {
+            id: item.id || item.delivery_id,
+            jobTitle: item.job?.job_name || '未知岗位',
+            company: item.job?.company?.company_name || item.job?.company?.username || '未知企业',
+            time: this.formatDate(item.delivery_time || item.created_at),
+            status: item.delivery_status,
+            statusText: statusObj.text,
+            statusStyle: statusObj.style
+          };
+        });
+      } catch (e) { console.error("获取投递记录失败", e); }
+    },
+
+    // 🚀 获取收藏岗位
+    async fetchFavorites() {
+      try {
+        const res = await API.getFavorites();
+        const records = res.data?.results || res.data || [];
+        this.favorites = records.map(item => ({
+          favoriteId: item.id || item.favorite_id,
+          jobId: item.job?.id || item.job?.job_id,
+          title: item.job?.job_name || '未知岗位',
+          company: item.job?.company?.company_name || item.job?.company?.username || '未知企业',
+          salary: item.job?.job_salary || '面议',
+          tags: item.job?.job_keywords ? item.job.job_keywords.split(',').slice(0, 3) : []
+        }));
+      } catch (e) { console.error("获取收藏记录失败", e); }
+    },
+
+    // 🚀 获取简历资产 (增强数据提取能力)
+        async fetchResumes() {
+          try {
+            const res = await API.getResumes();
+            // 暴力向下兼容各种后端的嵌套结构 (data.data.results, data.results 等)
+            const records = res.data?.data?.results || res.data?.results || res.data?.data || res.data || res.results || [];
+            
+            this.resumes = records.map(item => ({
+              id: item.id || item.resume_id,
+              name: item.resume_name || '我的简历.pdf',
+              uploadDate: this.formatDate(item.created_at)
+            }));
+          } catch (e) { 
+            console.error("获取简历失败", e); 
           }
         },
-        fail: (err) => {
-          clearInterval(timer);
-          console.error("【网络断开/请求失败】:", err);
-          this.handleUploadFail("网络连接失败，请检查您的网络");
+
+    // 🚀 获取积分流水
+    async fetchPointRecords() {
+      try {
+        const res = await API.getPointRecords();
+        const records = res.data?.results || res.data || [];
+        this.pointRecords = records.map((item, index) => ({
+          id: item.id || index,
+          type: item.record_type === 1 || item.amount > 0 ? 'earn' : 'spend', // 1通常为收入
+          amount: Math.abs(item.points || item.amount || 0),
+          description: item.description || item.reason || '系统积分变动',
+          date: this.formatDate(item.created_at)
+        }));
+      } catch (e) { console.error("获取积分流水失败", e); }
+    },
+
+    // ============ 交互操作 ============
+    viewJobDetail(job) { 
+      if (job.jobId) uni.navigateTo({ url: `/pages/student/job-detail?id=${job.jobId}` });
+    },
+    goToUploadResume() { uni.navigateTo({ url: '/pages/student/upload-resume' }); },
+    goToRecharge() { uni.navigateTo({ url: '/pages/student/points-recharge' }); },
+    
+    // 取消收藏
+    async unfavorite(job) {
+      try {
+        await API.deleteFavorite(job.favoriteId);
+        uni.showToast({ title: '已取消收藏', icon: 'success' });
+        this.fetchFavorites(); // 刷新列表
+      } catch (e) {
+        uni.showToast({ title: '操作失败', icon: 'none' });
+      }
+    },
+
+    // 删除简历
+    deleteResume(resume) {
+      uni.showModal({
+        title: '销毁确认',
+        content: '确定要从资产库中永久删除这份简历吗？',
+        confirmColor: '#ef4444',
+        success: async (res) => {
+          if (res.confirm) {
+            try {
+              await API.deleteResume(resume.id);
+              uni.showToast({ title: '已安全销毁', icon: 'success' });
+              
+              // 如果删除的是当前默认简历，清空缓存
+              const currentId = uni.getStorageSync('current_resume_id');
+              if (currentId == resume.id) uni.removeStorageSync('current_resume_id');
+              
+              this.fetchResumes(); // 刷新列表
+            } catch (e) {
+              uni.showToast({ title: '删除失败', icon: 'none' });
+            }
+          }
         }
       });
     },
 
-    // 🚀 渲染真实解析结果
-    renderParsedData(backendData) {
-      this.progress = 100;
-      
-      // 判断后端是否成功传回了真实的 AI 解析字典 (parsed_info) 和简历 ID
-      const realData = backendData.data?.parsed_info;
-      const resumeId = backendData.data?.resume_id || backendData.data?.id;
-
-      if (realData && resumeId) {
-         // 把 AI 提取的真实数据赋值给前端 UI，遇到空字段给予合理的文案兜底
-         this.resumeInfo = {
-            name: realData.name || '未提取到姓名',
-            major: realData.major || '未提取到专业',
-            education: realData.education || '未提取到学历',
-            experience: realData.experience || '未提取到工作经验',
-            target: realData.target || '未明确求职目标',
-            skills: (Array.isArray(realData.skills) && realData.skills.length > 0) ? realData.skills : ['未提取到明显技能']
-         };
-
-         // 将真实的简历 ID 存入本地缓存，作为下一步去匹配岗位的“入场券”
-         uni.setStorageSync('current_resume_id', resumeId);
-
-         setTimeout(() => {
-           this.isParsing = false;
-           this.parseComplete = true;
-           uni.showToast({ title: '数字分身构建完成', icon: 'success' });
-         }, 400);
-
-      } else {
-         // 🚀 剔除了原本的“测试同学”假数据兜底，改为严肃的错误处理
-         this.handleUploadFail("简历核心信息提取不完整，请尝试其他格式");
-      }
-    },
-
-    // 失败处理中枢
-    handleUploadFail(msg) {
-      this.isParsing = false;
-      this.progress = 0;
+    logout() {
       uni.showModal({
-        title: '解析失败',
-        content: msg,
-        showCancel: false,
+        title: '断开连接',
+        content: '确定要退出当前账号吗？',
         confirmColor: '#ef4444',
-        confirmText: '我知道了'
+        success: (res) => {
+          if (res.confirm) {
+            uni.showLoading({ title: '注销中...', mask: true });
+            setTimeout(() => {
+              uni.clearStorageSync();
+              uni.hideLoading();
+              uni.redirectTo({ url: '/pages/auth/login' });
+            }, 800);
+          }
+        }
       });
     },
 
-    reupload() {
-      this.uploadedFile = null;
-      this.isParsing = false;
-      this.parseComplete = false;
-      this.progress = 0;
-    },
+    goBack() { uni.navigateBack(); },
 
-    goToMatchResult() {
-      const resumeId = uni.getStorageSync('current_resume_id');
-      if (!resumeId) {
-          uni.showToast({ title: '找不到有效的简历凭证，请重新解析', icon: 'none' });
-          return;
-      }
-      uni.navigateTo({ url: '/pages/student/match-result' });
-    },
-
-    formatFileSize(size) {
-      if (!size) return '0 B';
-      if (size < 1024) return size + ' B';
-      if (size < 1024 * 1024) return (size / 1024).toFixed(2) + ' KB';
-      return (size / (1024 * 1024)).toFixed(2) + ' MB';
-    },
-
-    getCurrentTime() {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    },
-    goBack() { uni.navigateBack(); }
+    // 工具函数：格式化时间
+    formatDate(dateString) {
+      if (!dateString) return '--';
+      const date = new Date(dateString);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
   }
 }
 </script>
@@ -370,7 +483,7 @@ $danger: #ef4444;
 $text-main: #f8fafc;
 $text-muted: #94a3b8;
 
-/* ==================== 极光背景 (Web端优化) ==================== */
+/* ==================== 极光背景 ==================== */
 .student-universe-web {
   min-height: 100vh; width: 100vw; background-color: $bg-deep;
   position: relative; overflow-x: hidden;
@@ -393,164 +506,172 @@ $text-muted: #94a3b8;
   height: 70px; display: flex; align-items: center; justify-content: space-between; padding: 0 40px;
   background: linear-gradient(180deg, rgba(3,3,8,0.9) 0%, transparent 100%); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0;
 }
-.header-left { display: flex; align-items: center; gap: 16px; }
+.header-left { display: flex; align-items: center; gap: 20px; }
 .icon-btn { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
 .icon-btn:hover { background: rgba(255,255,255,0.1); transform: translateX(-2px); }
 .arrow-left { color: #fff; font-size: 18px; }
 .title { font-size: 18px; font-weight: 600; color: #fff; letter-spacing: 1px; }
 
-.status-badge { display: flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500; border: 1px solid; }
-.status-badge.standby { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #cbd5e1; .dot { background: #cbd5e1; } }
-.status-badge.processing { background: rgba($primary, 0.1); border-color: rgba($primary, 0.3); color: $primary-light; .dot { background: $primary-light; box-shadow: 0 0 8px $primary; } }
-.status-badge.success { background: rgba($success, 0.1); border-color: rgba($success, 0.3); color: $success; .dot { background: $success; box-shadow: 0 0 8px $success; } }
-.dot { width: 6px; height: 6px; border-radius: 50%; }
+.logout-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: rgba($danger, 0.1); border: 1px solid rgba($danger, 0.2); border-radius: 12px; color: $danger; font-size: 14px; font-weight: 500; cursor: pointer; transition: 0.2s; }
+.logout-btn:hover { background: rgba($danger, 0.15); border-color: rgba($danger, 0.3); transform: scale(1.02); }
 
-/* 工作区主体 */
+/* 工作区主体：双舱结构 */
 .workspace-body { flex: 1; display: flex; gap: 32px; padding: 32px 40px; height: calc(100vh - 70px); box-sizing: border-box; max-width: 1400px; margin: 0 auto; width: 100%; }
 
-/* 公用玻璃卡片 */
+/* 公用组件 */
 .ultra-glass-card {
   background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
   backdrop-filter: blur(32px); border: 1px solid rgba(255,255,255,0.06);
   border-top: 1px solid rgba(255,255,255,0.12); border-left: 1px solid rgba(255,255,255,0.08);
-  border-radius: 24px; box-shadow: 0 16px 40px -10px rgba(0,0,0,0.5); overflow: hidden;
+  border-radius: 24px; box-shadow: 0 16px 40px -10px rgba(0,0,0,0.5); overflow: hidden; position: relative;
 }
+.hover-lift { transition: all 0.3s ease; cursor: pointer; }
+.hover-lift:hover { transform: translateY(-4px); background: rgba(255,255,255,0.05); box-shadow: 0 20px 48px -10px rgba(0,0,0,0.6), 0 0 20px rgba(59,130,246,0.1); }
 
-/* ==================== 左侧：上传与状态控制舱 ==================== */
-.left-control-panel { width: 440px; flex-shrink: 0; display: flex; flex-direction: column; }
+/* ==================== 左侧：主控面板 ==================== */
+.left-control-panel { width: 380px; flex-shrink: 0; display: flex; flex-direction: column; }
+.left-scroll { height: 100%; }
+.left-content-inner { display: flex; flex-direction: column; gap: 24px; padding-right: 16px; }
 
-/* 状态1：未上传 拖拽区 */
-.upload-zone {
-  flex: 1; border: 2px dashed rgba(255,255,255,0.15); border-radius: 24px; background: rgba(255,255,255,0.02);
-  display: flex; flex-direction: column; justify-content: center; padding: 40px; cursor: pointer; transition: all 0.3s ease;
-}
-.upload-zone:hover { border-color: rgba($primary, 0.5); background: rgba($primary, 0.05); box-shadow: inset 0 0 30px rgba($primary, 0.1); transform: translateY(-4px); }
-.upload-zone-inner { text-align: center; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.upload-icon-wrapper { position: relative; width: 80px; height: 80px; margin-bottom: 24px; }
-.icon-circle { width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(135deg, rgba($primary, 0.2), rgba($secondary, 0.2)); border: 2px solid rgba($primary, 0.3); display: flex; align-items: center; justify-content: center; font-size: 36px; z-index: 2; position: relative; }
-.pulse-ring { position: absolute; inset: -8px; border-radius: 50%; border: 2px solid rgba($primary, 0.3); animation: pulse 2s ease-in-out infinite; }
-.upload-title { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 8px; }
-.upload-desc { font-size: 13px; color: $text-muted; margin-bottom: 8px; }
-.upload-tips { display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 12px; margin-top: auto; border: 1px solid rgba(255,255,255,0.03); }
-.tip-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
-.tip-icon { font-size: 14px; }
+/* 用户信息卡 */
+.user-profile-card { padding: 32px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.avatar-wrapper { position: relative; width: 88px; height: 88px; margin-bottom: 20px; }
+.avatar-icon { width: 100%; height: 100%; border-radius: 50%; background: linear-gradient(135deg, rgba($primary,0.2), rgba($secondary,0.2)); display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; z-index: 2; border: 1px solid rgba($primary,0.4); }
+.avatar-ring { position: absolute; inset: -6px; border-radius: 50%; border: 1px dashed rgba($primary, 0.5); animation: rotate 6s linear infinite; }
+.avatar-glow { position: absolute; inset: -10px; border-radius: 50%; background: radial-gradient(circle, rgba($primary,0.3), transparent 70%); animation: pulse 3s infinite; }
+@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* 状态2：文件已选/解析中 卡片 */
-.file-status-card { padding: 32px; display: flex; flex-direction: column; gap: 24px; }
-.file-header { display: flex; align-items: center; gap: 16px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.file-type-icon { width: 56px; height: 56px; border-radius: 14px; background: rgba($primary, 0.1); border: 1px solid rgba($primary, 0.2); display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
-.file-info { flex: 1; min-width: 0; }
-.file-name { font-size: 16px; font-weight: 600; color: #fff; display: block; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-meta { font-size: 12px; color: $text-muted; }
-.reupload-btn { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-size: 14px; }
-.reupload-btn:hover { background: rgba(255,255,255,0.15); transform: rotate(90deg); }
+.user-name { font-size: 24px; font-weight: 700; color: #fff; display: block; }
+.name-line { width: 40px; height: 3px; background: linear-gradient(90deg, $primary, $secondary); border-radius: 2px; margin: 8px auto 12px; }
+.user-id-box { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: $text-muted; background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 12px; }
+.id-dot { width: 6px; height: 6px; border-radius: 50%; background: $secondary-light; box-shadow: 0 0 8px $secondary; }
 
-.action-row { width: 100%; }
+/* 资产卡片 */
+.asset-card { padding: 24px; background: linear-gradient(135deg, rgba($success, 0.1), rgba(16,185,129,0.02)); border-color: rgba($success, 0.3); }
+.asset-card:hover { border-color: rgba($success, 0.5); box-shadow: 0 16px 30px rgba($success, 0.15); }
+.asset-shine { position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent); transform: skewX(-20deg); animation: shimmerBtn 4s infinite; }
+.asset-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.asset-icon-box { font-size: 20px; filter: drop-shadow(0 0 8px rgba($success,0.5)); }
+.asset-label { font-size: 14px; font-weight: 500; color: #cbd5e1; }
+.asset-body { display: flex; justify-content: space-between; align-items: flex-end; }
+.asset-amount { font-size: 36px; font-weight: 800; color: $success; line-height: 1; text-shadow: 0 0 20px rgba($success,0.4); }
+.asset-action { display: flex; align-items: center; gap: 4px; font-size: 13px; color: $success; background: rgba($success, 0.15); padding: 6px 12px; border-radius: 10px; font-weight: 600; }
+.asset-action .arr { font-size: 16px; transition: 0.2s; }
+.asset-card:hover .asset-action .arr { transform: translateX(4px); }
 
-.parsing-container { display: flex; flex-direction: column; gap: 16px; }
-.progress-header { display: flex; justify-content: space-between; align-items: center; }
-.progress-label { font-size: 14px; font-weight: 500; color: #e2e8f0; }
-.progress-value { font-size: 20px; font-weight: 800; color: $primary-light; }
-.progress-value.success-text { color: $success; }
-.progress-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
-.progress-bar-fill { height: 100%; background: linear-gradient(90deg, $primary, $secondary); border-radius: 4px; transition: width 0.1s linear; position: relative; }
-.progress-shine { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); animation: shine 1.5s infinite; }
-@keyframes shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+/* 导航菜单 */
+.nav-menu-card { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.nav-menu-item { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-radius: 16px; cursor: pointer; transition: 0.3s; position: relative; border: 1px solid transparent; }
+.nav-menu-item:hover { background: rgba(255,255,255,0.03); }
+.nav-menu-item.active { background: linear-gradient(90deg, rgba($primary, 0.15), transparent); border-color: rgba($primary, 0.2); }
+.menu-icon-box { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: 0.3s; }
+.menu-icon-box.active-glow { background: rgba($primary, 0.2); border: 1px solid rgba($primary, 0.4); box-shadow: 0 0 12px rgba($primary, 0.3); }
+.menu-label { font-size: 15px; font-weight: 500; color: #cbd5e1; transition: 0.3s; }
+.nav-menu-item.active .menu-label { color: #fff; font-weight: 600; }
+.menu-indicator { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 4px; height: 24px; background: $primary; border-radius: 0 4px 4px 0; box-shadow: 0 0 10px $primary; }
 
-.parsing-steps { display: flex; justify-content: space-between; margin-top: 16px; }
-.step-item { display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0.4; transition: 0.3s; flex: 1; }
-.step-item.active { opacity: 0.8; }
-.step-item.completed { opacity: 1; }
-.step-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 16px; transition: 0.3s; }
-.step-item.active .step-icon { background: rgba($primary, 0.2); border: 1px solid rgba($primary, 0.4); transform: scale(1.1); box-shadow: 0 0 10px rgba($primary,0.2); }
-.step-item.completed .step-icon { background: rgba($success, 0.15); border: 1px solid rgba($success, 0.3); }
-.step-text { font-size: 12px; color: #cbd5e1; text-align: center; }
 
-.success-message { text-align: center; font-size: 14px; color: $success; margin-top: 10px; line-height: 1.6; }
-
-/* ==================== 右侧：解析结果预览舱 ==================== */
-.right-preview-panel { flex: 1; min-width: 0; }
+/* ==================== 右侧：内容面板 ==================== */
+.right-content-panel { flex: 1; min-width: 0; }
 .h-full { height: 100%; display: flex; flex-direction: column; }
-.preview-scroll { flex: 1; height: 0; padding: 40px; box-sizing: border-box; }
+.content-header { padding: 32px 40px 24px; border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.1); }
+.content-title { font-size: 24px; font-weight: 700; color: #fff; display: block; margin-bottom: 8px; }
+.content-subtitle { font-size: 14px; color: $text-muted; }
+
+.detail-scroll { flex: 1; height: 0; }
+.detail-inner { padding: 32px 40px; }
+
+/* 共有网格列表 */
+.list-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+.data-card { padding: 24px; display: flex; flex-direction: column; border-radius: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); }
+
+/* 模块1: 投递记录 */
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.d-title { font-size: 18px; font-weight: 600; color: #fff; flex: 1; padding-right: 16px; }
+.status-badge { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; border: 1px solid; flex-shrink: 0; }
+.status-badge.pending { color: $warning; background: rgba($warning,0.1); border-color: rgba($warning,0.3); .dot { background: $warning; box-shadow: 0 0 8px $warning; } }
+.status-badge.interview { color: $primary-light; background: rgba($primary,0.1); border-color: rgba($primary,0.3); .dot { background: $primary-light; box-shadow: 0 0 8px $primary; } }
+.status-badge.rejected { color: $text-muted; background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); .dot { background: $text-muted; } }
+.card-bottom { display: flex; gap: 20px; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 16px; }
+.d-meta { font-size: 13px; color: #cbd5e1; display: flex; align-items: center; gap: 6px; }
+
+/* 模块2: 收藏岗位 */
+.d-salary { font-size: 16px; font-weight: 700; color: $success; }
+.d-company { font-size: 14px; color: #cbd5e1; display: flex; align-items: center; gap: 6px; }
+.d-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.neon-tag.ghost { padding: 4px 10px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 12px; color: #94a3b8; transition: 0.2s; }
+.data-card:hover .neon-tag.ghost { border-color: rgba($primary, 0.3); color: #cbd5e1; }
+.card-actions.border-top { margin-top: auto; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,0.05); display: flex; justify-content: flex-end; }
+.mb-12 { margin-bottom: 12px; } .mb-16 { margin-bottom: 16px; } .mb-24 { margin-bottom: 24px; } .mb-32 { margin-bottom: 32px; }
+
+/* 模块3: 简历库 */
+.resume-card { flex-direction: row; align-items: center; gap: 20px; }
+.resume-icon-box { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, rgba($primary,0.15), rgba($secondary,0.15)); border: 1px solid rgba($primary, 0.3); display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
+.resume-info { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.r-name { font-size: 16px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.r-meta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: $text-muted; }
+.r-meta .divider { opacity: 0.5; }
+.delete-action { width: 32px; height: 32px; border-radius: 8px; background: rgba($danger, 0.1); border: 1px solid rgba($danger, 0.2); color: $danger; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: 0.2s; cursor: pointer; }
+.delete-action:hover { background: rgba($danger, 0.2); transform: scale(1.1); }
+
+/* 模块4: 积分与权益 */
+.panel-sm-title { font-size: 16px; font-weight: 600; color: #fff; display: block; margin-bottom: 16px; padding-left: 12px; position: relative; }
+.panel-sm-title::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 4px; background: $primary; border-radius: 2px; }
+.guide-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.guide-item { padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; display: flex; align-items: center; gap: 16px; }
+.g-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; border: 1px solid; }
+.theme-purple { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.3); }
+.theme-cyan { background: rgba(6,182,212,0.1); border-color: rgba(6,182,212,0.3); }
+.theme-green { background: rgba(16,185,129,0.1); border-color: rgba(16,185,129,0.3); }
+.g-text { display: flex; flex-direction: column; gap: 4px; }
+.g-title { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+.g-cost { font-size: 13px; color: $warning; font-weight: 500; }
+
+.history-list { display: flex; flex-direction: column; gap: 12px; }
+.history-item { padding: 20px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; display: flex; align-items: center; gap: 16px; border-left: 4px solid transparent; }
+.history-item.earn { border-left-color: $success; } .history-item.spend { border-left-color: $danger; }
+.h-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.h-info { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.h-desc { font-size: 15px; font-weight: 600; color: #fff; }
+.h-date { font-size: 12px; color: $text-muted; }
+.h-amount { font-size: 18px; font-weight: 700; padding: 6px 16px; border-radius: 10px; }
+.h-amount.earn { color: $success; background: rgba($success, 0.1); } .h-amount.spend { color: $danger; background: rgba($danger, 0.1); }
+
 
 /* 空状态 */
-.preview-empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; opacity: 0.7; }
-.empty-icon-box { width: 100px; height: 100px; border-radius: 50%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
-.e-icon { font-size: 40px; filter: drop-shadow(0 0 10px rgba($primary, 0.4)); }
+.empty-state { padding: 80px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.empty-icon { font-size: 64px; filter: drop-shadow(0 0 20px rgba(255,255,255,0.1)); margin-bottom: 24px; }
 .empty-title { font-size: 20px; font-weight: 600; color: #fff; margin-bottom: 12px; }
-.empty-desc { font-size: 14px; color: $text-muted; max-width: 360px; line-height: 1.6; }
+.empty-desc { font-size: 14px; color: $text-muted; }
 
-/* 骨架屏 (解析中动画) */
-.skeleton-container { width: 100%; }
-.shimmer { background: rgba(255,255,255,0.03); position: relative; overflow: hidden; border-radius: 8px; }
-.shimmer::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); animation: shimmer-scan 1.5s infinite; transform: skewX(-20deg); }
-@keyframes shimmer-scan { 100% { left: 200%; } }
-.skeleton-header { display: flex; gap: 20px; align-items: center; }
-.s-avatar { width: 80px; height: 80px; border-radius: 20px; }
-.s-lines { flex: 1; display: flex; flex-direction: column; gap: 16px; }
-.s-line { height: 16px; width: 80%; }
-.s-line.title { height: 24px; width: 40%; }
-.s-line.short { width: 50%; }
-.s-block { height: 100px; width: 100%; border-radius: 16px; }
-.s-tags { display: flex; gap: 12px; flex-wrap: wrap; }
-.s-tag { width: 80px; height: 32px; border-radius: 10px; }
-.mt-32 { margin-top: 32px; }
 
-/* 结果展示 */
-.parsed-result-content { display: flex; flex-direction: column; gap: 32px; }
-.result-header { display: flex; align-items: center; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.r-avatar { width: 80px; height: 80px; border-radius: 20px; background: linear-gradient(135deg, rgba($primary,0.15), rgba($secondary,0.15)); border: 1px solid rgba($primary, 0.3); display: flex; align-items: center; justify-content: center; font-size: 40px; position: relative; }
-.r-avatar-ring { position: absolute; inset: -4px; border-radius: 24px; border: 1px dashed rgba($primary, 0.4); animation: rotate 6s linear infinite; }
-.r-base-info { display: flex; flex-direction: column; gap: 8px; }
-.r-name { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: 1px; }
-.r-sub { font-size: 15px; color: $text-muted; }
-
-.info-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-.glass-block { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; }
-.block-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
-.b-icon { font-size: 18px; }
-.info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed rgba(255,255,255,0.05); &:last-child { border: none; padding-bottom: 0; } }
-.i-label { font-size: 14px; color: $text-muted; }
-.i-val { font-size: 15px; font-weight: 500; color: #e2e8f0; }
-.i-val.highlight { color: $primary-light; font-weight: 600; }
-
-.skill-tags { display: flex; flex-wrap: wrap; gap: 12px; }
-.neon-tag { padding: 6px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; background: rgba(255,255,255,0.03); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.08); }
-.neon-tag.active { background: rgba($primary, 0.1); color: #bfdbfe; border-color: rgba($primary, 0.3); }
-
-.action-banner { display: flex; align-items: center; gap: 16px; padding: 20px; background: linear-gradient(90deg, rgba($primary,0.1), transparent); border-left: 4px solid $primary; border-radius: 12px; }
-.banner-icon { font-size: 24px; animation: pulse 2s infinite; }
-.banner-text { display: flex; flex-direction: column; gap: 4px; }
-.b-title { font-size: 15px; font-weight: 600; color: #fff; }
-.b-desc { font-size: 13px; color: $text-muted; }
-
-/* ==================== 统一组件与滚动条 ==================== */
+/* ==================== 统一按钮组件 ==================== */
 .liquid-btn {
-  display: inline-flex; align-items: center; justify-content: center; height: 48px; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; color: #fff;
-  background: linear-gradient(135deg, $primary, $secondary); box-shadow: 0 8px 20px rgba($primary, 0.3); transition: 0.3s; border: none;
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, $primary, $secondary); color: #fff; border-radius: 14px;
+  font-size: 15px; font-weight: 600; cursor: pointer; padding: 0 24px; height: 48px; border: none;
+  box-shadow: 0 8px 20px rgba($primary, 0.3), inset 0 1px 1px rgba(255,255,255,0.3); transition: all 0.3s;
 }
-.liquid-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba($primary, 0.5); }
-.liquid-btn.micro { height: 38px; padding: 0 24px; font-size: 14px; border-radius: 10px; box-shadow: none; }
-.liquid-btn.large { height: 56px; font-size: 16px; border-radius: 14px; }
-.liquid-btn.fill-width { width: 100%; box-sizing: border-box; }
+.liquid-btn:hover { box-shadow: 0 12px 28px rgba($primary, 0.5); transform: translateY(-2px); }
 .liquid-btn .btn-txt { position: relative; z-index: 2; }
 
-.ghost-btn.outline { background: transparent; border: 1px dashed rgba(255,255,255,0.2); color: #cbd5e1; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; transition: 0.2s; }
-.ghost-btn.outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-style: solid; border-color: rgba(255,255,255,0.4); }
+.ghost-btn.outline { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: #cbd5e1; height: 36px; padding: 0 16px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; transition: 0.2s; }
+.ghost-btn.outline:hover { background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.3); }
+.ghost-btn.outline.danger-theme:hover { background: rgba($danger, 0.1); color: $danger; border-color: rgba($danger, 0.3); }
 
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
-/* 动画序列修复版 */
+/* 动画防丢 */
 .fade-in-down { animation: fadeInDown 0.6s ease both; }
-.fade-in-up { animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.fade-in-left { animation: fadeInLeft 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.delay-1 { animation-delay: 0.1s; } .delay-2 { animation-delay: 0.2s; } 
+.fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.fade-in-left { animation: fadeInLeft 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.delay-1 { animation-delay: 0.1s; } .delay-2 { animation-delay: 0.2s; }
 @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeInLeft { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.9); } }
-.mt-20 { margin-top: 20px; } .mt-16 { margin-top: 16px; } .mt-10 { margin-top: 10px; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.9); } }
+@keyframes shimmerBtn { 100% { left: 200%; } }
+.safe-area-bottom { height: 40px; }
 </style>
