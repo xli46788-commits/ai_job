@@ -225,7 +225,6 @@ export default {
       recommendedJobs: [],
       optimizationSuggestions: [],
       isLoading: false,
-      // 🚀 新增动态监控字段
       modelAccuracy: '--',
       responseTime: '--'
     }
@@ -251,7 +250,7 @@ export default {
     }
   },
   mounted() {
-    this.fetchMatchResults(); // 页面加载时请求后端
+    this.fetchMatchResults(); // 页面加载时执行我们改造后的全自动方法
   },
   methods: {
     getMatchStyle(rate) {
@@ -276,27 +275,34 @@ export default {
       }, 30);
     },
 
-    // 🚀 核心联调：获取后端智能匹配报告
-    async fetchMatchResults() {
+async fetchMatchResults() {
       this.isLoading = true;
-      uni.showLoading({ title: 'AI 匹配数据拉取中...' });
+      uni.showLoading({ title: 'AI 智能匹配计算中...' });
       
-      // 记录开始请求的时间，用于计算真实的响应速度
       const startTime = Date.now();
       
       try {
+        // 🌟【关键改动】从本地缓存里尝试捞出刚才上传成功的简历 ID
+        const activeResumeId = uni.getStorageSync('current_resume_id');
+        console.log("==> 当前准备匹配的简历 ID 是:", activeResumeId);
+
+        console.log("==> 前端正在向后端发送 batch_match 请求，触发自动匹配...");
+        
+        // 🌟【关键改动】把 resume_id 塞进 POST 请求体里喂给后端
+        await API.batchMatchJobs({
+          resume_id: activeResumeId || "" 
+        }); 
+        
+        console.log("==> 后端自动计算完毕，开始拉取最新的匹配结果列表...");
         const res = await API.getMatchResults();
         
-        // 动态计算真实的响应耗时
         const endTime = Date.now();
         this.responseTime = ((endTime - startTime) / 1000).toFixed(1) + 's';
 
         const records = res.data?.results || res.data || res.results || res || [];
 
         if (records.length > 0) {
-          // 1. 映射后端真实数据为前端卡片格式，严格剔除假数据
           this.recommendedJobs = records.map(item => {
-            // 真实切割关键词，如果没有则返回空数组
             const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : [];
             const jobData = item.job || {};
             
@@ -312,22 +318,17 @@ export default {
             };
           });
 
-          // 2. 动态计算平均匹配度
           const totalScore = this.recommendedJobs.reduce((sum, job) => sum + job.matchRate, 0);
           this.targetScore = Math.round(totalScore / this.recommendedJobs.length);
           
-          // 动态设置模型精度（优先使用后端返回的模型精度，如果没有则基于匹配度做合理估算以丰富UI呈现）
           const topMatch = records[0];
           if (topMatch.model_accuracy) {
              this.modelAccuracy = `${topMatch.model_accuracy}%`;
           } else {
-             // 合理的估算值：不能超过 99%
              this.modelAccuracy = `${Math.min(99.2, this.targetScore + 3.5).toFixed(1)}%`;
           }
 
-          // 3. 🚀 安全解析 AI 大模型报告
           const suggestions = [];
-          
           if (topMatch.llm_report) {
              let report = {};
              try {
@@ -339,7 +340,7 @@ export default {
                     report = rawStr;
                 }
              } catch (e) {
-                console.error("AI报告解析失败(后端返回了非标准JSON):", e);
+                console.error("AI报告解析失败:", e);
              }
              
              if (report.summary) suggestions.push({ icon: '🧠', title: 'AI 综合评估', content: report.summary });
@@ -353,98 +354,83 @@ export default {
              suggestions.push({ icon: '💡', title: '匹配度综合建议', content: topMatch.optimize_suggestion });
           }
 
-          // 🚀 彻底删除写死的 fallback 假建议。交由模板的 v-else 渲染完美的空状态
           this.optimizationSuggestions = suggestions;
 
         } else {
-          uni.showToast({ title: '暂无匹配数据，请先上传简历并匹配', icon: 'none' });
           this.targetScore = 0;
           this.responseTime = '--';
           this.modelAccuracy = '--';
+          this.recommendedJobs = [];
+          this.optimizationSuggestions = [];
         }
         
-        // 🚀 执行分数动画！
         this.animateScore();
         
       } catch (error) {
-        console.error('获取匹配结果失败:', error);
-        uni.showToast({ title: '网络异常，请重试', icon: 'none' });
-        this.responseTime = 'Timeout';
+        console.error('全自动匹配请求遭遇失败，详情原因:', error);
+        uni.showToast({ title: '暂无匹配数据，请确保后台有勾选“已发布”的岗位', icon: 'none' });
+        this.targetScore = 0;
+        this.responseTime = 'Error';
       } finally {
-        uni.hideLoading();
+        uni.hideLoading(); 
         this.isLoading = false;
       }
     },
 
     async applyJob(job) {
-          uni.showModal({
-            title: '确认一键投递',
-            content: `确定要使用数字分身向 ${job.company} 投递简历吗？`,
-            confirmColor: '#3b82f6',
-            success: async (res) => {
-              if (res.confirm) {
-                
-                const finalResumeId = job.resume_id || uni.getStorageSync('current_resume_id');
-                if (!finalResumeId) {
-                    uni.showToast({ title: '请先去首页上传简历，构建数字分身', icon: 'none' });
-                    return;
-                }
-    
-                uni.showLoading({ title: '加密投递中...', mask: true });
-                
-                try {
-                  await API.applyForJob({
-                    job_id: job.id,
-                    resume_id: finalResumeId
-                  });
-                  
-                  uni.hideLoading(); 
-                  uni.showToast({ title: '投递成功！', icon: 'success' });
-                  
-                } catch (error) {
-                  uni.hideLoading(); 
-                  
-                  // 🚀 榨取后端真实的报错字段
-                  let errorMsg = '网络拥挤，请重试';
-                  if (error.data && typeof error.data === 'object') {
-                      const firstKey = Object.keys(error.data)[0];
-                      if (Array.isArray(error.data[firstKey])) {
-                          errorMsg = error.data[firstKey][0];
-                      } else if (typeof error.data[firstKey] === 'string') {
-                          errorMsg = error.data[firstKey];
-                      }
-                  }
-                  
-                  setTimeout(() => {
-                    uni.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
-                  }, 100);
-                  
-                  console.error("投递报错详情:", error.data || error);
-                }
-              }
+      uni.showModal({
+        title: '确认一键投递',
+        content: `确定要使用数字分身向 ${job.company} 投递简历吗？`,
+        confirmColor: '#3b82f6',
+        success: async (res) => {
+          if (res.confirm) {
+            const finalResumeId = job.resume_id || uni.getStorageSync('current_resume_id');
+            if (!finalResumeId) {
+                uni.showToast({ title: '请先去首页上传简历，构建数字分身', icon: 'none' });
+                return;
             }
-          });
-        },
+
+            uni.showLoading({ title: '加密投递中...', mask: true });
+            
+            try {
+              await API.applyForJob({
+                job_id: job.id,
+                resume_id: finalResumeId
+              });
+              uni.hideLoading(); 
+              uni.showToast({ title: '投递成功！', icon: 'success' });
+            } catch (error) {
+              uni.hideLoading(); 
+              let errorMsg = '网络拥挤，请重试';
+              if (error.data && typeof error.data === 'object') {
+                  const firstKey = Object.keys(error.data)[0];
+                  if (Array.isArray(error.data[firstKey])) {
+                      errorMsg = error.data[firstKey][0];
+                  } else if (typeof error.data[firstKey] === 'string') {
+                      errorMsg = error.data[firstKey];
+                  }
+              }
+              setTimeout(() => {
+                uni.showToast({ title: errorMsg, icon: 'none', duration: 3000 });
+              }, 100);
+            }
+          }
+        }
+      });
+    },
 
     viewMoreJobs() {
       uni.showToast({ title: '正在为您跳转岗位大厅...', icon: 'none' });
-      setTimeout(() => {
-        uni.navigateBack(); 
-      }, 800);
+      setTimeout(() => { uni.navigateBack(); }, 800);
     },
 
     viewJobDetail(job) { 
       const targetId = job.id || job.job_id;
-      
       if (!targetId || targetId === 'undefined') {
           uni.showToast({ title: '岗位数据异常，无法查看', icon: 'none' });
-          console.error("❌ 错误：这个岗位的 ID 是空的！完整数据为：", job);
           return;
       }
-      
-      uni.navigateTo({
-        url: `/pages/student/job-detail?id=${targetId}`
-      });
+      uni.navigateTo({ url: `/pages/student/job-detail?id=${targetId}` });
     },
     
     applySuggestion(suggestion) {
@@ -456,7 +442,6 @@ export default {
     },
     
     goToAIPolish() { uni.navigateTo({ url: '/pages/student/ai-polish' }); },
-    
     exportResult() {
       uni.showLoading({ title: '正在生成 PDF 报告...' });
       setTimeout(() => {
@@ -464,7 +449,6 @@ export default {
         uni.showToast({ title: '报告已导出', icon: 'success' });
       }, 1500);
     },
-    
     goBack() { uni.navigateBack(); }
   }
 }

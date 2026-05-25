@@ -78,18 +78,26 @@
             </view>
             
             <view class="action-section">
-              <view class="liquid-btn fill-width large" :class="{ disabled: !originalContent.trim() || isPolishing }" @click="startPolish">
-                <view v-if="isPolishing" class="btn-content">
-                  <view class="spinner"></view>
-                  <text class="btn-txt">大模型重构中 (需5-10秒)...</text>
-                </view>
-                <view v-else class="btn-content">
-                  <text class="btn-icon">✨</text>
-                  <text class="btn-txt">唤醒大模型开始润色 (消耗 50 积分)</text>
-                </view>
-                <view class="shimmer-effect" v-if="!isPolishing && originalContent.trim()"></view>
-              </view>
-            </view>
+                          <view class="action-btn-group">
+                            <view class="liquid-btn split-btn" :class="{ disabled: !originalContent.trim() || isPolishing }" @click="startPolish">
+                              <view v-if="isPolishing" class="btn-content">
+                                <view class="spinner"></view>
+                                <text class="btn-txt">大模型重构中...</text>
+                              </view>
+                              <view v-else class="btn-content">
+                                <text class="btn-icon">✨</text>
+                                <text class="btn-txt">开始润色 (50积分)</text>
+                              </view>
+                            </view>
+                            
+                            <view class="liquid-btn split-btn success-theme" :class="{ disabled: !polishedContent || isPolishing }" @click="saveAndApplyPolished">
+                              <view class="btn-content">
+                                <text class="btn-icon">💾</text>
+                                <text class="btn-txt">保存优化版至用户主页</text>
+                              </view>
+                            </view>
+                          </view>
+                        </view>
             
           </view>
         </view>
@@ -211,7 +219,8 @@ export default {
       isPolishing: false,
       selectedStyle: 'professional',
       optimizationTime: 0,
-      
+      resumeId: '', // 追加：保存原简历ID
+         resumeName: '我的简历', // 追加：保存原简历名称
       // 这里的风格配置属于系统级常量选项，不算假数据，安全保留
       polishStyles: [
         { label: '专业正式', value: 'professional', icon: '👔', description: '严谨专业，适合大厂投递' },
@@ -222,7 +231,47 @@ export default {
       polishTips: []
     }
   },
+  onLoad(options) {
+      // 页面加载时，尝试拿到上一页缓存里正在操作的简历 ID 和名字
+      this.resumeId = uni.getStorageSync('current_resume_id') || '';
+      const localUser = uni.getStorageSync('user_info');
+      if (localUser) this.resumeName = localUser.username + '_简历';
+    },
   methods: {
+	  replaceContent() {
+	        if (!this.polishedContent) return;
+	        this.originalContent = this.polishedContent;
+	        uni.showToast({ title: '已覆盖至左侧输入框', icon: 'success' });
+	      },
+	      
+	      // 2. 🌟 新增功能：位置2按钮的点击事件（替换左侧并发送给后端持久化保存）
+	      async saveAndApplyPolished() {
+	        if (!this.polishedContent) return;
+	        
+	        // 动作 A：首先替换左侧内容（你要求的替换润色部分）
+	        this.originalContent = this.polishedContent;
+	        
+	        uni.showLoading({ title: '正在同步至资产库...', mask: true });
+	        try {
+	          // 动作 B：向后端发起保存，把润色后的纯文本、原简历名称送过去
+	          const res = await API.savePolishedResume({
+	            content: this.polishedContent,
+	            original_name: this.resumeName,
+	            style: this.selectedStyle
+	          });
+	          
+	          if (res.code === 200 || res.data?.code === 200) {
+	            uni.showToast({ title: 'AI优化版已存入资产库！', icon: 'success' });
+	          } else {
+	            throw new Error(res.msg || '保存失败');
+	          }
+	        } catch (e) {
+	          console.error("保存优化简历失败:", e);
+	          uni.showToast({ title: e.message || '网络拥堵，保存失败', icon: 'none' });
+	        } finally {
+	          uni.hideLoading();
+	        }
+	      },
     startPolish() {
       if (this.isPolishing || !this.originalContent.trim()) return;
       
@@ -499,4 +548,8 @@ $text-muted: #94a3b8;
 @keyframes fadeInLeft { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.9); } }
 .mt-32 { margin-top: 32px; } .mt-24 { margin-top: 24px; } .mt-16 { margin-top: 16px; } .mt-10 { margin-top: 10px; }
+.action-btn-group { display: flex; gap: 16px; width: 100%; box-sizing: border-box; }
+.split-btn { flex: 1; min-width: 0; padding: 0 12px !important; }
+.success-theme { background: linear-gradient(135deg, #10b981, #059669) !important; box-shadow: 0 8px 20px rgba(16,185,129, 0.3) !important; }
+.success-theme:hover { box-shadow: 0 12px 28px rgba(16,185,129, 0.5) !important; }
 </style>
