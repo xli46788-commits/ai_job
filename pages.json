@@ -62,6 +62,18 @@
 	        "navigationStyle": "custom" 
 	      }
 	    },
+	{
+	  "path": "pages/student/wx-pay",
+	  "style": {
+	    "navigationStyle": "custom"
+	  }
+	},
+	{
+	  "path": "pages/student/ali-pay",
+	  "style": {
+	    "navigationStyle": "custom"
+	  }
+	},
 	// ==================== O端 (管理员端) 页面 ====================
 	    {
 	      "path": "pages/admin/home",

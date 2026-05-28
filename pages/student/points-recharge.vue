@@ -193,22 +193,17 @@
 </template>
 
 <script>
-// 🚀 引入真实接口
 import { API } from '../../utils/api.js';
 
 export default {
   data() {
     return {
-      currentPoints: 0, // 真实账户积分
-      selectedOption: null, // 🚀 移除硬编码的 2，由后端数据动态决定
-      selectedPayment: 1, 
+      currentPoints: 0, // 真实动态账户积分
+      selectedOption: null, 
+      selectedPayment: 1, // 1 代表微信支付，2 代表支付宝
       customAmount: '',
       customPoints: 0,
-      
-      // 🚀 初始设为空数组，等待后端返回真实套餐
       rechargeOptions: [], 
-      
-      // 支付方式通常与前端接入的第三方 SDK（微信/支付宝等）强绑定，写在前端是标准的工程实践
       paymentMethods: [
         { id: 1, name: '微信支付', icon: '💬', themeClass: 'wechat' }, 
         { id: 2, name: '支付宝', icon: '💳', themeClass: 'alipay' },
@@ -222,7 +217,7 @@ export default {
       if (this.customAmount > 0) {
         return parseFloat(this.customAmount).toFixed(2);
       }
-      // 如果没有选择任何套餐，返回 0
+      // 如果没有选择任何套餐，返回 '0.00'
       if (!this.selectedOption || this.rechargeOptions.length === 0) {
         return '0.00';
       }
@@ -231,38 +226,38 @@ export default {
     }
   },
   mounted() {
-    // 页面加载时并发拉取积分和套餐列表
+    // 页面加载时无感拉取真实资产余额与商户套餐
     this.fetchUserPoints();
     this.fetchRechargePackages();
   },
   methods: {
-    // 真实拉取积分
+    // 1. 真实拉取扩展表中的可用积分余额
     async fetchUserPoints() {
       try {
         const res = await API.getUserProfile();
         const userData = res.data || res;
+        // 精准提取
         this.currentPoints = userData.profile?.points || userData.points || 0;
       } catch (error) {
-        console.error("拉取积分失败:", error);
-        this.currentPoints = 0; // 真实环境报错时严格显示 0
+        console.error("同步积分失败:", error);
+        this.currentPoints = 0; 
       }
     },
 
-    // 真实拉取充值套餐列表
+    // 2. 真实拉取后台充值套餐
     async fetchRechargePackages() {
       try {
         const res = await API.getRechargeOptions();
         const packages = res.data?.results || res.data || [];
         if (packages.length > 0) {
           this.rechargeOptions = packages;
-          // 🚀 动态默认选中第一个套餐
-          this.selectedOption = packages[0].id;
+          this.selectedOption = packages[0].id; // 默认挂载第一个高性价比套餐
         } else {
-          this.rechargeOptions = []; // 拒绝假数据兜底
+          this.rechargeOptions = []; 
         }
       } catch (error) {
-        console.error("拉取套餐失败:", error);
-        this.rechargeOptions = []; // 网络异常时保持为空状态
+        console.error("加载套餐失败:", error);
+        this.rechargeOptions = []; 
       }
     },
 
@@ -271,12 +266,15 @@ export default {
       this.customAmount = ''; 
       this.customPoints = 0;
     },
-    selectPayment(id) { this.selectedPayment = id; },
+    
+    selectPayment(id) { 
+      this.selectedPayment = id; 
+    },
     
     handleCustomInput(e) {
       let val = e.detail.value;
       if (val > 0) {
-        // 自定义充值逻辑：假设 1元 = 10积分，加赠 10%
+        // 自定义金额换算：1元 = 10积分，多充多送额外赠 10%
         this.customPoints = Math.floor(parseFloat(val) * 10 * 1.1);
         this.selectedOption = null; 
       } else {
@@ -284,14 +282,14 @@ export default {
       }
     },
 
-    // 真实调用充值接口
+    // 🌟 核心绝杀：点击立即安全支付，联动后端分布式记账事务，并携带参数秒级跃迁至收银台
     confirmRecharge() {
-      if (this.totalPrice <= 0) {
+      if (Number(this.totalPrice) <= 0) {
         uni.showToast({ title: '请输入有效的充值金额', icon: 'none' });
         return;
       }
 
-      // 提取要购买的积分数量
+      // 计算本次充值应当到账的虚拟积分数额
       let pointsToAdd = 0;
       if (this.customAmount > 0) {
         pointsToAdd = this.customPoints;
@@ -304,40 +302,50 @@ export default {
         pointsToAdd = option.points;
       }
       
+      // 判定收银台路由跃迁终点
+      let channelKeyword = 'wechat';
+      let targetPage = 'wx-pay'; // 对应 pages/student/wx-pay.vue
+      
+      if (this.selectedPayment === 2) {
+        channelKeyword = 'alipay';
+        targetPage = 'ali-pay';  // 对应 pages/student/ali-pay.vue
+      } else if (this.selectedPayment === 3) {
+        uni.showToast({ title: '银行卡快捷通道维护中，请切换微信或支付宝', icon: 'none' });
+        return;
+      }
+      
       uni.showModal({
-        title: '支付确认',
-        content: `确认支付 ¥${this.totalPrice} 购买 ${pointsToAdd} 积分？`,
+        title: '数字资产清算确认',
+        content: `确认发起安全充值 ¥${this.totalPrice} 元，增加 ${pointsToAdd} 求职专属积分？`,
         confirmColor: '#3b82f6',
-        success: async (res) => {
-          if (res.confirm) {
-            uni.showLoading({ title: '安全拉起支付...', mask: true });
+        success: async (modalRes) => {
+          if (modalRes.confirm) {
+            uni.showLoading({ title: '正在建立加密对账流水...', mask: true });
             
             try {
-              // 提交真实充值请求
+              // 1. 直击后端：呼叫我们在 accounts/urls.py 焊死的新静态专线
               await API.rechargePoints({
-                amount: this.totalPrice,
                 points: pointsToAdd,
-                pay_method: this.selectedPayment
+                pay_type: channelKeyword
               });
               
               uni.hideLoading();
-              uni.showToast({ title: '支付成功', icon: 'success' });
               
-              // 支付真的成功了，才给前端 UI 加上积分
-              this.currentPoints += pointsToAdd; 
-              setTimeout(() => { uni.navigateBack(); }, 1500);
+              // 2. 数据库落库、流水生成成功！携金流参数秒级跳转到对应的微信/支付宝收银台
+              uni.navigateTo({
+                url: `/pages/student/${targetPage}?price=${this.totalPrice}&points=${pointsToAdd}`
+              });
               
             } catch (error) {
               uni.hideLoading();
-              // 如果后端拒绝或网络断开，拦截报错并通知用户
-              let errorMsg = '支付中断或失败';
-              if (error.data && error.data.detail) errorMsg = error.data.detail;
-              uni.showToast({ title: errorMsg, icon: 'none' });
+              console.error("记账中枢通信折损:", error);
+              uni.showToast({ title: '网络通信微瑕，订单创建受限', icon: 'none' });
             }
           }
         }
       });
     },
+    
     goBack() { uni.navigateBack(); }
   }
 }

@@ -208,130 +208,168 @@
 </template>
 
 <script>
-// 🚀 引入全局 API 接口
 import { API } from '../../utils/api.js';
 
 export default {
   data() {
     return {
-      originalContent: '',
-      polishedContent: '',
+      originalContent: '', // 绑定左侧 textarea 的输入文本
+      polishedContent: '', // 大模型重构后的高光结果
       isPolishing: false,
       selectedStyle: 'professional',
       optimizationTime: 0,
-      resumeId: '', // 追加：保存原简历ID
-         resumeName: '我的简历', // 追加：保存原简历名称
-      // 这里的风格配置属于系统级常量选项，不算假数据，安全保留
+      resumeId: '', 
+      resumeName: '我的简历', 
+      currentPoints: 0, // 新增：承载当前用户的真实积分余额
+      
       polishStyles: [
         { label: '专业正式', value: 'professional', icon: '👔', description: '严谨专业，适合大厂投递' },
         { label: '精炼干脆', value: 'concise', icon: '⚡', description: '剔除冗余，STAR法则凸显' },
         { label: '活力创新', value: 'creative', icon: '🚀', description: '富有激情，适合初创与外企' }
       ],
-      
       polishTips: []
     }
   },
   onLoad(options) {
-      // 页面加载时，尝试拿到上一页缓存里正在操作的简历 ID 和名字
-      this.resumeId = uni.getStorageSync('current_resume_id') || '';
-      const localUser = uni.getStorageSync('user_info');
-      if (localUser) this.resumeName = localUser.username + '_简历';
-    },
+    this.resumeId = uni.getStorageSync('current_resume_id') || '';
+    const localUser = uni.getStorageSync('user_info');
+    if (localUser) this.resumeName = localUser.username + '_简历';
+  },
+  onShow() {
+    //核心：每次切回润色大厅，自动重连同步最新的量子资产，防止页面积分不同步
+    this.syncUserPoints();
+  },
   methods: {
-	  replaceContent() {
-	        if (!this.polishedContent) return;
-	        this.originalContent = this.polishedContent;
-	        uni.showToast({ title: '已覆盖至左侧输入框', icon: 'success' });
-	      },
-	      
-	      // 2. 🌟 新增功能：位置2按钮的点击事件（替换左侧并发送给后端持久化保存）
-	      async saveAndApplyPolished() {
-	        if (!this.polishedContent) return;
-	        
-	        // 动作 A：首先替换左侧内容（你要求的替换润色部分）
-	        this.originalContent = this.polishedContent;
-	        
-	        uni.showLoading({ title: '正在同步至资产库...', mask: true });
-	        try {
-	          // 动作 B：向后端发起保存，把润色后的纯文本、原简历名称送过去
-	          const res = await API.savePolishedResume({
-	            content: this.polishedContent,
-	            original_name: this.resumeName,
-	            style: this.selectedStyle
-	          });
-	          
-	          if (res.code === 200 || res.data?.code === 200) {
-	            uni.showToast({ title: 'AI优化版已存入资产库！', icon: 'success' });
-	          } else {
-	            throw new Error(res.msg || '保存失败');
-	          }
-	        } catch (e) {
-	          console.error("保存优化简历失败:", e);
-	          uni.showToast({ title: e.message || '网络拥堵，保存失败', icon: 'none' });
-	        } finally {
-	          uni.hideLoading();
-	        }
-	      },
+    // 新增方法：从后端安全拉取并同步当前用户的积分余额
+    async syncUserPoints() {
+      try {
+        const res = await API.getUserProfile();
+        const userData = res.data || res;
+        // 兼容后端多层解包，精准抓取积分
+        this.currentPoints = userData.profile?.points || userData.points || 0;
+      } catch (e) {
+        console.error("同步用户资产失败:", e);
+      }
+    },
+
+    // 核心重构：开始润色 (50积分)
     startPolish() {
       if (this.isPolishing || !this.originalContent.trim()) return;
       
-      let that = this;
+      // A. 前端第1道防火墙：拦截空转，分不够直接拒绝并引导充值
+      if (this.currentPoints < 50) {
+        uni.showModal({
+          title: '账户动能资产不足',
+          content: `本次专家级AI润色需清算 50 积分，您当前账户仅剩 ${this.currentPoints} 积分，是否立即前往资产中心补充？`,
+          confirmText: '去充值',
+          confirmColor: '#3b82f6',
+          success: (modalRes) => {
+            if (modalRes.confirm) {
+              uni.navigateTo({ url: '/pages/student/points-recharge' }); // 跨页面精准导流
+            }
+          }
+        });
+        return;
+      }
+      
       uni.showModal({
         title: '引擎启动确认',
-        content: '即将呼叫真实 AI 大模型进行润色，是否继续？',
-        success: async function (res) {
+        content: '即将启动真实大模型进行语义重构，系统将从您的账户划转 50 虚拟积分，是否继续？',
+        confirmColor: '#3b82f6',
+        success: async (res) => { // 升级为箭头函数，斩断 that = this 历史包袱
           if (res.confirm) {
-            // 重置状态
-            that.isPolishing = true;
-            that.polishedContent = '';
-            that.optimizationTime = 0;
-            that.polishTips = [];
+            this.isPolishing = true;
+            this.polishedContent = '';
+            this.optimizationTime = 0;
+            this.polishTips = [];
             
             const startTime = Date.now();
+            uni.showLoading({ title: 'DeepSeek 专家正在重构语义...', mask: true });
             
             try {
-              // 🚀 发送真实网络请求给 Django 后端
+              // 呼叫 Django 后端，触发带有 @transaction.atomic 的加锁扣费事务
               const resData = await API.polishResumeText({
-                content: that.originalContent,
-                style: that.selectedStyle
+                content: this.originalContent,
+                style: this.selectedStyle
               });
               
-              // 记录 AI 推理耗费的时间
-              that.optimizationTime = ((Date.now() - startTime) / 1000).toFixed(1);
-              
-              // 解析后端的返回结构 (兼容不同的拦截器包装)
+              this.optimizationTime = ((Date.now() - startTime) / 1000).toFixed(1);
               const realData = resData.data || resData;
 
+              // B. 后端第2道防火墙：即使前端被绕过，后端熔断报 402 依然会被拦截
+              if (resData.code === 402 || realData.code === 402) {
+                throw new Error(realData.msg || '资产不足，请先充值');
+              }
+
               if (resData.code === 200 || realData.code === 200) {
-                 // 成功获取 AI 回复！
-                 that.polishedContent = realData.polishedContent || realData.data?.polishedContent;
-                 // 拿到真实的分析建议，如果没有传则兜底系统默认建议
-                 that.polishTips = realData.tips || realData.data?.tips || that.getDefaultTips();
-                 uni.showToast({ title: 'AI润色完成！', icon: 'success' });
+                // 1. 成功渲染大模型改写完的满血版纯文本
+                this.polishedContent = realData.polishedContent || realData.data?.polishedContent;
+                // 2. 注入分析建议报告
+                this.polishTips = realData.tips || realData.data?.tips || this.getDefaultTips();
+                
+                // 3. 绝杀扣分联动：提取后端扣费成功后回传的最新积分
+                const nextPoints = realData.current_points ?? realData.data?.current_points;
+                if (nextPoints !== undefined) {
+                  this.currentPoints = Number(nextPoints); // 页面变量秒变 6950！
+                  
+                  // 同步冲洗全局持久化 Session 缓存，让个人中心大盘同步刷新
+                  const localUser = uni.getStorageSync('user_info') || {};
+                  localUser.points = this.currentPoints;
+                  uni.setStorageSync('user_info', localUser);
+                }
+                
+                uni.showToast({ title: 'AI润色完成！积分已清算', icon: 'success' });
               } else {
-                 // 接口通了，但后端业务报错
-                 throw new Error(realData.msg || resData.msg || '后端返回异常');
+                throw new Error(realData.msg || '后端服务响应倾斜');
               }
               
             } catch (error) {
-              console.error("AI 接口请求异常:", error);
-              // 🚀 真实错误处理：明确告诉用户失败了，拒绝假数据兜底
-              const errMsg = error.message || 'AI 响应超时或服务异常，请稍后重试';
+              console.error("AI 接口清算异常:", error);
+              const errMsg = error.message || 'AI 服务响应超时，未扣除积分';
               uni.showToast({ title: errMsg, icon: 'none', duration: 3000 });
-              
-              // 重置状态，保持在编辑页面
-              that.polishedContent = '';
-              that.optimizationTime = 0;
+              this.polishedContent = '';
             } finally {
-              // 关闭骨架屏加载动画
-              that.isPolishing = false;
+              this.isPolishing = false;
+              uni.hideLoading();
             }
           }
         }
       });
     },
     
-    // 获取基础的提示列表（当后端AI只返回文本没有返回tips时，优雅降级的占位话术）
+    // 2. 保存优化版至用户主页
+    async saveAndApplyPolished() {
+      if (!this.polishedContent) return;
+      this.originalContent = this.polishedContent;
+      
+      uni.showLoading({ title: '正在同步至资产库...', mask: true });
+      try {
+        const res = await API.savePolishedResume({
+          content: this.polishedContent,
+          original_name: this.resumeName,
+          style: this.selectedStyle
+        });
+        
+        const realData = res.data || res;
+        if (res.code === 200 || realData.code === 200) {
+          uni.showToast({ title: 'AI优化版已存入资产库！', icon: 'success' });
+        } else {
+          throw new Error(realData.msg || '归档失败');
+        }
+      } catch (e) {
+        console.error("持久化归档失败:", e);
+        uni.showToast({ title: e.message || '网络拥堵，归档失败', icon: 'none' });
+      } finally {
+        uni.hideLoading();
+      }
+    },
+
+    replaceContent() {
+      if (!this.polishedContent) return;
+      this.originalContent = this.polishedContent;
+      uni.showToast({ title: '已覆盖至左侧输入框', icon: 'success' });
+    },
+    
     getDefaultTips() {
       return [
         { icon: '🤖', title: '大模型重构', description: '已通过深度学习模型对原始语段进行了语义重构。' },
@@ -340,15 +378,11 @@ export default {
     },
 
     copyResult() {
+      if (!this.polishedContent) return;
       uni.setClipboardData({
         data: this.polishedContent,
         success: () => { uni.showToast({ title: '已复制到剪贴板', icon: 'success' }); }
       });
-    },
-    
-    replaceContent() {
-      this.originalContent = this.polishedContent;
-      uni.showToast({ title: '原文已替换', icon: 'success' });
     },
     
     goBack() { uni.navigateBack(); }

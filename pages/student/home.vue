@@ -25,7 +25,6 @@
         </view>
 
         <view class="header-right">
-          <view class="nav-item" @click="goToCommunity">职场情报局</view>
           <view class="nav-item" @click="goToDeliveries">投递记录</view>
           <view class="nav-item active">发现机会</view>
           <view class="profile-btn hover-lift" @click="goToProfile">
@@ -205,7 +204,6 @@
 </template>
 
 <script>
-// 🚀 1. 引入全局 API 接口
 import { API } from '../../utils/api.js';
 
 export default {
@@ -214,21 +212,18 @@ export default {
       userName: '同学',
       recommendedJobs: [], 
       isLoading: false,
-      // 🚀 提取静态假数据到状态中，以后随时可以接后端动态接口
       dailyInsight: '完善您的 AI 数字分身，能够提升推荐准确率，并为您解锁更多与您技能相匹配的隐藏高潜岗位。'
     }
   },
   onShow() {
-    // 页面每次显示时，刷新用户名和真实岗位列表
     const userInfo = uni.getStorageSync('user_info');
     if (userInfo && userInfo.username) {
       this.userName = userInfo.username;
     }
-	this.checkExistingResume();
+    this.checkExistingResume();
     this.fetchRecommendedJobs();
   },
   mounted() {
-    // 兼容 Web 端的生命周期
     this.fetchRecommendedJobs();
   },
   methods: {
@@ -239,7 +234,6 @@ export default {
       return '#f59e0b';
     },
 
-    // 🚀 2. 真实数据拉取逻辑：从 Django 获取匹配记录，并装载“万能 ID 提取器”
     async fetchRecommendedJobs() {
       this.isLoading = true;
       try {
@@ -248,15 +242,12 @@ export default {
 
         if (records && records.length > 0) {
           this.recommendedJobs = records.map(item => {
-            // 🚀 剔除假关键词兜底
             const keywordArray = item.job_keywords ? item.job_keywords.split(',').slice(0, 3) : [];
             const jobData = item.job || {};
             
             return {
-              // 🚀 万能 ID 提取器
               id: (typeof item.job === 'string' ? item.job : null) || jobData?.job_id || jobData?.id || item.job_id || item.id,
               resume_id: item.resume?.resume_id || item.resume?.id || item.resume_id, 
-              // 🚀 剔除写死的兜底名称
               title: jobData.job_name || item.job_name || '未知岗位',
               company: jobData.company?.company_name || jobData.company?.username || item.company_name || '未知企业', 
               salary: jobData.salary || item.salary || '面议',
@@ -277,7 +268,6 @@ export default {
       }
     },
 
-    // 🚀 3. 新增核心功能：一键触发 AI 大模型批量匹配
     async handleBatchMatch() {
       const resumeId = uni.getStorageSync('current_resume_id');
       
@@ -316,7 +306,6 @@ export default {
         confirmColor: '#ef4444',
         success: (res) => {
           if (res.confirm) {
-            // 清理缓存
             uni.clearStorageSync();
             uni.reLaunch({ url: '/pages/auth/login' });
           }
@@ -331,36 +320,29 @@ export default {
     goToAIPolish() { uni.navigateTo({ url: '/pages/student/ai-polish' }); },
     goToMatchResult() { uni.navigateTo({ url: '/pages/student/match-result' }); },
     
-	// 🚀 新增：静默检查数据库中是否已有历史简历
-	    async checkExistingResume() {
-	      // 如果本地缓存已经有简历ID了，就不用麻烦后端了
-	      if (uni.getStorageSync('current_resume_id')) {
-	        return;
-	      }
-	      
-	      try {
-	        // 调用 api.js 中的获取简历列表接口
-	        const res = await API.getResumes();
-	        const records = res.data?.results || res.data || res.results || res || [];
-	        
-	        // 如果后端返回了简历列表说明以前传过
-	        if (records.length > 0) {
-	          // 取最新的一份简历（通常是第一个）的 ID
-	          const latestResume = records[0];
-	          const resumeId = latestResume.resume_id || latestResume.id;
-	          
-	          if (resumeId) {
-	            // 悄悄存入本地缓存，接下来的匹配就能直接用了！
-	            uni.setStorageSync('current_resume_id', resumeId);
-	            console.log("✅ 已自动恢复历史简历记录：", resumeId);
-	          }
-	        }
-	      } catch (error) {
-	        console.error("检查历史简历状态失败:", error);
-	      }
-	    },
-	goToDeliveries() { uni.navigateTo({ url: '/pages/student/profile' }); }, // 新增这行	
-    // 🚀 安全跳转至详情页逻辑
+    async checkExistingResume() {
+      if (uni.getStorageSync('current_resume_id')) {
+        return;
+      }
+      
+      try {
+        const res = await API.getResumes();
+        const records = res.data?.results || res.data || res.results || res || [];
+        
+        if (records.length > 0) {
+          const latestResume = records[0];
+          const resumeId = latestResume.resume_id || latestResume.id;
+          
+          if (resumeId) {
+            uni.setStorageSync('current_resume_id', resumeId);
+            console.log("✅ 已自动恢复历史简历记录：", resumeId);
+          }
+        }
+      } catch (error) {
+        console.error("检查历史简历状态失败:", error);
+      }
+    },
+    goToDeliveries() { uni.navigateTo({ url: '/pages/student/profile' }); },
     viewJobDetail(job) { 
       const targetId = job.id || job.job_id;
       
@@ -569,7 +551,6 @@ $text-muted: #94a3b8;
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
-/* 完美动画防丢方案 */
 .fade-in-down { animation: fadeInDown 0.6s ease both; }
 .fade-in-up { animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .fade-in-left { animation: fadeInLeft 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
